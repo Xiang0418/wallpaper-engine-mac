@@ -202,7 +202,9 @@ final class SceneScriptRuntime {
             content.alpha = min(1, max(0, number(state.forProperty("alpha"), 1)))
             node.isHidden = !(state.forProperty("visible")?.toBool() ?? true)
             if let label = content as? SKLabelNode, let text = state.forProperty("text")?.toString() {
-                if let attributed = label.attributedText, attributed.length > 0 {
+                if let textNode = label as? SceneTextNode {
+                    textNode.updateText(text)
+                } else if let attributed = label.attributedText, attributed.length > 0 {
                     if attributed.string != text { label.attributedText = NSAttributedString(string:text,attributes:attributed.attributes(at:0,effectiveRange:nil)) }
                 } else if label.text != text { label.text = text }
             }
@@ -221,5 +223,51 @@ final class SceneScriptRuntime {
             }
             if let effects = state.forProperty("effects")?.toArray() as? [[String: Any]] { effectsDidUpdate?(id, effects) }
         }
+    }
+}
+
+/// Text is laid out in the exported layer rectangle. Its alignment is independent
+/// of the parent transform/anchor, and changing digits must not move the baseline.
+final class SceneTextNode: SKLabelNode {
+    private(set) var layoutBounds: CGRect = .zero
+    private let layoutSize: CGSize
+    private let padding: CGSize
+    private let horizontal: String
+    private let vertical: String
+    private let textFont: NSFont
+    private let textColor: NSColor
+
+    init(text: String, font: NSFont, color: NSColor, size: CGSize, padding: CGSize,
+         horizontal: String, vertical: String) {
+        self.layoutSize = size; self.padding = padding
+        self.horizontal = horizontal; self.vertical = vertical
+        self.textFont = font; self.textColor = color
+        super.init()
+        horizontalAlignmentMode = horizontal == "right" ? .right : horizontal == "left" ? .left : .center
+        verticalAlignmentMode = .baseline
+        updateText(text)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func updateText(_ text: String) {
+        guard attributedText?.string != text else { return }
+        let attributed = NSAttributedString(string: text, attributes: [.font: textFont, .foregroundColor: textColor])
+        attributedText = attributed
+        let width = attributed.size().width
+        let lineHeight = textFont.ascender - textFont.descender
+        // Padding extends the texture allocation, not the text advance or anchor.
+        // Keep the baseline independent of the current digits.
+        let px = max(0, padding.width), py = max(0, padding.height)
+        let w = max(layoutSize.width, width + 2 * px)
+        let h = max(layoutSize.height, lineHeight + 2 * py)
+        let boxX = horizontal == "left" ? 0 : horizontal == "right" ? -w : -w/2
+        // SpriteKit aligns its rendered glyph rectangle, which can differ from
+        // the typographic advance (especially the bundled rounded digits).
+        let x = 0.0
+        let y = vertical == "top" ? -textFont.ascender
+            : vertical == "bottom" ? -textFont.descender
+            : -textFont.ascender/2
+        layoutBounds = CGRect(x: boxX, y: vertical == "top" ? -h : vertical == "bottom" ? 0 : -h/2, width: w, height: h)
+        position = CGPoint(x: x, y: y)
     }
 }

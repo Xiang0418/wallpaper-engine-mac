@@ -186,3 +186,20 @@ Automated checks include:
 `/tmp/we-phase3-integrated.png` is a QA image over a deliberately low-resolution
 preview background. Passing tests does not establish Windows visual parity,
 long-duration memory stability or complete support for all scene wallpapers.
+
+### Clock layout regression
+
+Text labels retain the packaged fonts and a stable baseline across clock ticks.
+The fixture's exported heights (140, 134, 61) match the two fonts' ascender minus
+descender at 300 / 72 pixels per point (within one scene pixel). The renderer
+uses that raster scale independently of Mac backing scale. Padding no longer
+insets the text advance. This is inferred from this export and its Windows
+reference, not a verified contract for every Wallpaper Engine version.
+The rendering test freezes the displayed time at 02:55:43 for reference comparison.
+Center alignment uses half the ascent for the baseline; horizontal alignment uses
+SpriteKit glyph bounds rather than typographic advance. The fixed-time capture
+was visually compared with the supplied Windows screenshot; pixel-exact parity
+is not asserted.
+
+`we-live-layout.png` uses actual video; older preview-based images contain a baked
+clock and must not be used for clock alignment. GPU output may be 1x or 2x on Retina.

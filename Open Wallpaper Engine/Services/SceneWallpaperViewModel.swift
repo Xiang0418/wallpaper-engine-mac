@@ -535,15 +535,20 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
                 fontCache[path] = font
             } else { warn("Unable to load font: " + path) }
         }
-        font = NSFont(descriptor: font.fontDescriptor, size: object.pointsize ?? 24) ?? font
+        // This scene export uses a 300-DPI text raster: its saved text heights
+        // (140, 134, 61) match the packaged font metrics at 300 / 72.
+        // Do not use the Mac display's backing scale: parent transforms apply later.
+        font = NSFont(descriptor: font.fontDescriptor, size: (object.pointsize ?? 24) * 300 / 72) ?? font
         let c = (object.color ?? "1 1 1").parseColor()
-        let node = SKLabelNode()
-        node.attributedText = NSAttributedString(string: object.text ?? "", attributes: [
-            .font: font, .foregroundColor: NSColor(red: c.r, green: c.g, blue: c.b, alpha: 1)
-        ])
+        let size = (object.size ?? "0 0").parseVector2()
+        let padding = (object.padding ?? "0 0").parseVector2()
+        let node = SceneTextNode(text: object.text ?? "", font: font,
+                                 color: NSColor(red: c.r, green: c.g, blue: c.b, alpha: 1),
+                                 size: CGSize(width: size.0, height: size.1),
+                                 padding: CGSize(width: padding.0, height: padding.1),
+                                 horizontal: object.horizontalalign ?? "center",
+                                 vertical: object.verticalalign ?? "center")
         node.alpha = object.alpha ?? 1
-        node.horizontalAlignmentMode = object.horizontalalign == "left" ? .left : object.horizontalalign == "right" ? .right : .center
-        node.verticalAlignmentMode = object.verticalalign == "top" ? .top : object.verticalalign == "bottom" ? .bottom : .center
         return node
     }
 

@@ -87,6 +87,15 @@ import AVFoundation
         precondition(source.snapshot(at:0.1,volume:0,playing:true).allSatisfy{$0 == 0})
         precondition(source.snapshot(at:0.1,volume:1,playing:false).allSatisfy{$0 == 0})
         source.stop()
+        let label = SceneTextNode(text:"12",font:.systemFont(ofSize:30),color:.white,
+                                  size:CGSize(width:165,height:140),padding:CGSize(width:32,height:32),
+                                  horizontal:"right",vertical:"center")
+        let baseline = label.position.y
+        let edge = label.position.x
+        precondition(abs(edge) < 0.001 && label.layoutBounds.maxX == 0 && label.horizontalAlignmentMode == .right)
+        label.updateText("59")
+        precondition(label.position.y == baseline && abs(label.position.x - edge) < 0.001,
+                     "Clock ticks preserve text alignment and the font baseline")
         let trail = SceneRopeTrail(definition:["maxcount":10,"emitter":[["rate":100]],"initializer":[["name":"lifetimerandom","min":1,"max":1]]])
         for _ in 0..<100 { trail.update(delta:0.1,cursor:CGPoint(x:20,y:40),enabled:true) }
         precondition(trail.particleCount <= 10)

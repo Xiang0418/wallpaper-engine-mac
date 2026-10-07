@@ -70,6 +70,12 @@ final class AppDelegate {
         check(scene.descendants.compactMap { $0 as? SKLabelNode }.filter { $0.attributedText != nil }.count == 3, "Three clock labels load packaged fonts")
         let fonts = scene.descendants.compactMap { ($0 as? SKLabelNode)?.attributedText?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont }
         check(Set(fonts.map { $0.fontName }).count == 2, "Both distinct packaged fonts are used")
+        for (id, expectedHeight) in [(546, 140.0), (547, 134.0), (548, 61.0)] {
+            let label = layer(id).children.first as! SceneTextNode
+            let font = label.attributedText!.attribute(.font, at:0, effectiveRange:nil) as! NSFont
+            check(abs(font.ascender-font.descender-expectedHeight) < 1,
+                  "Packaged text height matches font raster metrics for layer \(id)")
+        }
 
         check(abs(layer(425).xScale - 1.2) < 0.0001 && (layer(425).children.first as? SKSpriteNode)?.blendMode == .add, "Flare scale and additive blending")
         check(layer(529).children.first is SKSpriteNode && (layer(529).children.first as? SKSpriteNode)?.shader != nil, "Cover mask shader is attached")
@@ -81,6 +87,14 @@ final class AppDelegate {
         view.presentScene(scene)
         AppDelegate.shared.wallpaperViewModel.playRate = 1
         RunLoop.main.run(until: Date().addingTimeInterval(3))
+        scene.isPaused = true
+        for (id, digits) in [(546, "02"), (547, "55"), (548, "43")] {
+            (layer(id).children.first as? SceneTextNode)?.updateText(digits)
+        }
+        if let live = view.texture(from: scene) {
+            try NSBitmapImageRep(cgImage: live.cgImage()).representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "/tmp/we-live-layout.png"))
+        }
+        scene.isPaused = false
         // Render static layers over the preview for repeatable visual QA.
         AppDelegate.shared.wallpaperViewModel.playRate = 0
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
@@ -89,7 +103,7 @@ final class AppDelegate {
         guard let texture = view.texture(from: scene), let cg = texture.cgImage() as CGImage? else { fatalError("Render failed") }
         let bitmap = NSBitmapImageRep(cgImage: cg)
         try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "/tmp/we-phase2-scene.png"))
-        check(bitmap.pixelsWide == 1920, "Scene renders to image")
+        check(bitmap.pixelsWide == 1920 || bitmap.pixelsWide == 3840, "Scene renders at display backing resolution")
         let cover = layer(529).children.first as! SKSpriteNode
         if let isolated = view.texture(from: cover, crop: CGRect(x: -150, y: -150, width: 300, height: 300)) {
             let pixels = NSBitmapImageRep(cgImage: isolated.cgImage())
