@@ -93,6 +93,18 @@ extension URL {
         model.playVolume = model.lastPlayVolume
         check(overallSlider.intValue == 40, "Unmute restores overall percentage")
 
+        let menuToCopy = NSMenu()
+        let volumeItem = NSMenuItem()
+        volumeItem.view = overall
+        menuToCopy.addItem(volumeItem)
+        let copiedMenu = menuToCopy.copy() as! NSMenu
+        check(copiedMenu.items.first?.view is WallpaperVolumeMenuView, "Copying a custom-volume menu safely decodes its view")
+
+        AppDelegate.shared.wallpaperViewModel.playVolume = 0.23
+        let copiedSlider = copiedMenu.items.first!.view!.subviews.compactMap { $0 as? NSSlider }.first!
+        check(copiedSlider.intValue == 23, "Decoded menu remains bound to live master volume")
+        AppDelegate.shared.wallpaperViewModel.playVolume = 1
+
         // Actual video player subscriptions must follow the wallpaper when switching.
         let shared = AppDelegate.shared.wallpaperViewModel
         shared.playRate = 0 // no audible playback during the test

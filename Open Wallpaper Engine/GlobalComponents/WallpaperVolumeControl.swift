@@ -105,7 +105,12 @@ final class WallpaperVolumeMenuView: NSView {
             }
     }
 
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    // AppKit may archive/unarchive custom menu views while copying a menu.
+    // Rebuild controls and subscriptions against the live model, not archived targets.
+    required convenience init?(coder: NSCoder) {
+        self.init(model: AppDelegate.shared.wallpaperViewModel,
+                  screenName: NSScreen.screens.first { WallpaperViewModel.screenId(for: $0) == WallpaperViewModel.mainScreenId() }?.localizedName ?? "")
+    }
 
     @objc private func changeVolume(_ sender: NSSlider) {
         let level = Float(sender.doubleValue.rounded() / 100)

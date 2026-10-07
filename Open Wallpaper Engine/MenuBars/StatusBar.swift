@@ -81,7 +81,7 @@ extension AppDelegate {
         menu.insertItem(separator, at: muteIndex + 1)
     }
 
-    func setStatusMenu() {
+    func makeStatusMenu() -> NSMenu {
         // Recent Wallpapers Submenu
         let recentWallpapersMenuItem = NSMenuItem(title: String(localized: "Recent Wallpapers"), action: nil, keyEquivalent: "")
         recentWallpapersMenuItem.submenu = buildRecentWallpapersMenu()
@@ -135,6 +135,19 @@ extension AppDelegate {
 
         refreshWallpaperVolumeItems(in: menu)
 
+        if let muteItem = menu.items.first(where: { $0.action == #selector(mute) }), wallpaperViewModel.playVolume == 0 {
+            muteItem.title = String(localized: "Unmute")
+            muteItem.action = #selector(unmute)
+        }
+        if let pauseItem = menu.items.first(where: { $0.action == #selector(pause) }), wallpaperViewModel.playRate == 0 {
+            pauseItem.title = String(localized: "Resume")
+            pauseItem.action = #selector(resume)
+        }
+        return menu
+    }
+
+    func setStatusMenu() {
+        let menu = makeStatusMenu()
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.statusItem.menu = menu
 
