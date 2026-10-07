@@ -63,6 +63,7 @@
 		CC000000000000000000000B /* WorkshopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000000C /* WorkshopView.swift */; };
 		DAEE29C62A9CB52100633898 /* WebWallpaperViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAEE29C52A9CB52100633898 /* WebWallpaperViewModel.swift */; };
 		DD1000000000000000000001 /* WallpaperVolumeControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000002 /* WallpaperVolumeControl.swift */; };
+		DD2000000000000000000001 /* WallpaperPlaybackSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD2000000000000000000002 /* WallpaperPlaybackSession.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -135,6 +136,7 @@
 		CC000000000000000000000C /* WorkshopView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkshopView.swift; sourceTree = "<group>"; };
 		DAEE29C52A9CB52100633898 /* WebWallpaperViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebWallpaperViewModel.swift; sourceTree = "<group>"; };
 		DD1000000000000000000002 /* WallpaperVolumeControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperVolumeControl.swift; sourceTree = "<group>"; };
+		DD2000000000000000000002 /* WallpaperPlaybackSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperPlaybackSession.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -210,6 +212,7 @@
 		5E98F6C92A826E5300C12E34 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				DD2000000000000000000002 /* WallpaperPlaybackSession.swift */,
 				AA1B2C3D4E5F600300ABCD01 /* SceneParsers */,
 				5E7665252A2DC30D00E0E4B4 /* WEProject.swift */,
 				5EF28EBE2A8986AC0013ABBE /* WallpaperViewModel.swift */,
@@ -426,6 +429,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DD2000000000000000000001 /* WallpaperPlaybackSession.swift in Sources */,
 				DD1000000000000000000001 /* WallpaperVolumeControl.swift in Sources */,
 				5E8C82032A9E15D0009E291B /* ExplorerItemMenu.swift in Sources */,
 				5E66A0EA2A8BAA5400EE79D6 /* ExplorerGlobalMenu.swift in Sources */,

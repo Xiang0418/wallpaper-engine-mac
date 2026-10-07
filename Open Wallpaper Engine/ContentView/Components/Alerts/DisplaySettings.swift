@@ -39,6 +39,8 @@ struct DisplaySettings: SubviewOfContentView {
             MonitorLayoutView(wallpaperViewModel: wallpaperViewModel)
                 .frame(maxHeight: 200)
 
+            WallpaperAudioSourceControl(wallpaperViewModel: wallpaperViewModel)
+
             // Selected screen info
             if let screen = NSScreen.screens.first(where: { WallpaperViewModel.screenId(for: $0) == wallpaperViewModel.selectedScreenId }) {
                 let screenId = wallpaperViewModel.selectedScreenId

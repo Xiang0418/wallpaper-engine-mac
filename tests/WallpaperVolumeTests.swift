@@ -53,7 +53,9 @@ extension URL {
         defer { observation.cancel() }
         model.setVolume(0.37, for: a)
         check(close(received, 0.37) && model.volume(for: b) == 1, "Changes publish immediately and isolate wallpapers")
+        model.audioSourceScreenId = "saved-audio-screen"
         let restored = WallpaperViewModel(volumeDefaults: defaults)
+        check(restored.audioSourceScreenId == "saved-audio-screen", "Audio source choice survives restart")
         check(close(restored.volume(for: a), 0.37), "Volume survives settings reload")
         var renamed = a
         renamed.project.title = "Renamed"
@@ -80,12 +82,24 @@ extension URL {
         check(slider.intValue == 21, "Settings changes update existing menu control")
         check(slider.accessibilityLabel()?.contains("Background music") == true, "Menu slider has wallpaper-specific accessibility label")
 
+        let overall = WallpaperVolumeMenuView(model: model)
+        let overallSlider = overall.subviews.compactMap { $0 as? NSSlider }.first!
+        overallSlider.doubleValue = 40
+        overallSlider.sendAction(overallSlider.action, to: overallSlider.target)
+        check(close(model.playVolume, 0.4) && close(model.volume(for: a), 0.21), "Single overall slider preserves wallpaper levels")
+        check(close(model.effectiveVolume(for: a), 0.084), "Overall volume multiplies saved wallpaper volume")
+        model.playVolume = 0
+        check(overallSlider.intValue == 0, "Mute updates overall slider")
+        model.playVolume = model.lastPlayVolume
+        check(overallSlider.intValue == 40, "Unmute restores overall percentage")
+
         // Actual video player subscriptions must follow the wallpaper when switching.
         let shared = AppDelegate.shared.wallpaperViewModel
         shared.playRate = 0 // no audible playback during the test
         shared.setVolume(0.32, for: a)
         shared.setVolume(0.71, for: b)
-        let video = VideoWallpaperViewModel(wallpaper: a)
+        shared.audioSourceScreenId = "test-video"
+        let video = VideoWallpaperViewModel(wallpaper: a, screenId: "test-video")
         check(close(video.player.volume, 0.32), "Video starts with saved wallpaper volume")
         video.currentWallpaper = b
         check(close(video.player.volume, 0.71), "Switching video rebinds saved volume")
@@ -99,7 +113,8 @@ extension URL {
         if CommandLine.arguments.count > 1 {
             let wallpaper = WEWallpaper(using: WEProject(file: "scene.json", preview: "", title: "Scene fixture", type: "scene"), where: URL(fileURLWithPath: CommandLine.arguments[1]))
             shared.setVolume(0.44, for: wallpaper)
-            let scene = SceneWallpaperViewModel(wallpaper: wallpaper)
+            shared.audioSourceScreenId = "test-scene"
+            let scene = SceneWallpaperViewModel(wallpaper: wallpaper, screenId: "test-scene")
             defer { scene.stop() }
             let properties = Mirror(reflecting: scene).children
             let player = properties.first { $0.label == "videoPlayer" }!.value as! AVQueuePlayer
@@ -112,16 +127,54 @@ extension URL {
             check(player.volume == 0 && audio[0].0.volume == 0, "Scene remains muted while its saved volume changes")
             shared.playVolume = 1
             check(close(player.volume, 0.52) && close(audio[0].0.volume, 0.52), "Scene unmute restores its saved percentage")
+            // Repeated renderer replacement models display notifications during lid changes.
+            shared.audioSourceScreenId = "wake-display-a"
+            let first = SceneWallpaperViewModel(wallpaper: wallpaper, screenId: "wake-display-a")
+            let second = SceneWallpaperViewModel(wallpaper: wallpaper, screenId: "wake-display-b")
+            scene.stop()
+            func music(_ model: SceneWallpaperViewModel) -> AVAudioPlayer {
+                (Mirror(reflecting: model).children.first { $0.label == "audioPlayers" }!.value as! [(AVAudioPlayer, Float)])[0].0
+            }
+            let firstMusic = music(first)
+            let secondMusic = music(second)
+            check([firstMusic, secondMusic].filter { $0.volume > 0 }.count == 1, "Same wallpaper on two displays has one audible music player")
+            var retained = [first]
+            for _ in 0..<3 {
+                let oldMusic = music(retained.last!)
+                let replacement = SceneWallpaperViewModel(wallpaper: wallpaper, screenId: "wake-display-a")
+                retained.append(replacement)
+                check(!oldMusic.isPlaying, "Replacing a display stops its previous player even while retained")
+                check([music(replacement), secondMusic].filter { $0.volume > 0 }.count == 1, "Repeated display replacement keeps exactly one audio owner")
+            }
+            // Delayed teardown from an old view cannot unregister its replacement.
+            first.stop()
+            WallpaperPlaybackSessions.shared.stop(screenId: "wake-display-a")
+            check(secondMusic.volume == 0, "Disconnecting selected source does not enable another display")
+            shared.audioSourceScreenId = "wake-display-b"
+            check(secondMusic.volume > 0, "Selecting another display transfers audio ownership")
+            let reconnected = SceneWallpaperViewModel(wallpaper: wallpaper, screenId: "wake-display-a")
+            check(music(reconnected).volume == 0, "Reconnecting a nonselected screen stays silent")
+            reconnected.stop()
+            for retired in retained {
+                retired.systemDidWake(Notification(name: NSWorkspace.screensDidWakeNotification))
+                check((Mirror(reflecting: retired).children.first { $0.label == "audioPlayers" }!.value as! [(AVAudioPlayer, Float)]).isEmpty,
+                      "Retired renderer stays stopped after wake")
+            }
+            second.stop()
+
         }
 
         for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
-            let content = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 260))
+            let content = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 400))
             content.wantsLayer = true
             content.appearance = NSAppearance(named: appearance)
             content.layer?.backgroundColor = (name == "light" ? NSColor.white : NSColor.windowBackgroundColor).cgColor
-            let menuPreview = WallpaperVolumeMenuView(model: model, wallpaper: a, screenName: "Built-in Display")
+            let menuPreview = WallpaperVolumeMenuView(model: model)
             menuPreview.frame.origin = NSPoint(x: 20, y: 138)
             content.addSubview(menuPreview)
+            let source = NSHostingView(rootView: WallpaperAudioSourceControl(wallpaperViewModel: model).padding(16).environment(\.colorScheme, name == "light" ? .light : .dark))
+            source.frame = NSRect(x: 0, y: 265, width: 340, height: 130)
+            content.addSubview(source)
             let settings = NSHostingView(rootView: WallpaperVolumeControl(wallpaperViewModel: model, wallpaper: a).padding(16).environment(\.colorScheme, name == "light" ? .light : .dark))
             settings.frame = NSRect(x: 0, y: 0, width: 340, height: 130)
             content.addSubview(settings)

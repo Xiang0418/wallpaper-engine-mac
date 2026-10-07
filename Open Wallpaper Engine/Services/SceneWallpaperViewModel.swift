@@ -11,7 +11,14 @@ import SwiftUI
 import AVFoundation
 import Combine
 
-class SceneWallpaperViewModel: ObservableObject {
+class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
+    private let screenId: String
+    private var audioEnabled = true
+
+    func setAudioEnabled(_ enabled: Bool) {
+        audioEnabled = enabled
+        applyPlayback()
+    }
     static func log(_ msg: String) {
         let line = "[SceneVM] \(msg)"
         NSLog("%@", line)
@@ -42,6 +49,7 @@ class SceneWallpaperViewModel: ObservableObject {
     private weak var errorNode: SKLabelNode?
 
     func stop() {
+        WallpaperPlaybackSessions.shared.unregister(self, screenId: screenId)
         volumeSubscription = nil
         readinessTimer?.invalidate()
         readinessTimer = nil
@@ -66,9 +74,9 @@ class SceneWallpaperViewModel: ObservableObject {
     private func applyPlayback() {
         let rate: Float = sleeping ? 0 : playRate
         videoPlayer?.rate = rate
-        videoPlayer?.volume = playVolume
+        videoPlayer?.volume = audioEnabled ? playVolume : 0
         for (player, volume) in audioPlayers {
-            player.volume = volume * playVolume
+            player.volume = audioEnabled ? volume * playVolume : 0
             if rate == 0 { player.pause() }
             else { player.rate = rate; if !player.isPlaying { player.play() } }
         }
@@ -94,7 +102,8 @@ class SceneWallpaperViewModel: ObservableObject {
     }
 
 
-    init(wallpaper: WEWallpaper) {
+    init(wallpaper: WEWallpaper, screenId: String = UUID().uuidString) {
+        self.screenId = screenId
         self.currentWallpaper = wallpaper
         Self.log("init: wallpaper=\(wallpaper.project.title ?? "?") dir=\(wallpaper.wallpaperDirectory.path)")
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -123,6 +132,7 @@ class SceneWallpaperViewModel: ObservableObject {
 
     func loadScene(from wallpaper: WEWallpaper) {
         stop()
+        WallpaperPlaybackSessions.shared.register(self, screenId: screenId)
         volumeSubscription = AppDelegate.shared.wallpaperViewModel.volumePublisher(for: wallpaper)
             .sink { [weak self] volume in
                 self?.playVolume = volume

@@ -1,94 +1,186 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "All wallpapers muted" : {
+    "Audio source: Display Settings" : {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "All wallpapers muted"
+            "value": "Audio source: Display Settings"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "所有桌布已靜音"
+            "value": "可在顯示器設定選擇音源"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "所有壁纸已静音"
+            "value": "可在显示器设置选择音源"
           }
         }
       }
     },
-    "All wallpapers are muted. Your volume setting is saved." : {
+    "Selected audio source" : {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "All wallpapers are muted. Your volume setting is saved."
+            "value": "Selected audio source"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "所有桌布目前均為靜音，音量設定仍會儲存。"
+            "value": "指定的音源螢幕"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "所有壁纸目前均为静音，音量设置仍会保存。"
+            "value": "指定的音源显示器"
           }
         }
       }
     },
-    "Saved for this wallpaper." : {
+    "Only this display plays audio. If disconnected or disabled, wallpaper audio stays silent." : {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Saved for this wallpaper."
+            "value": "Only this display plays audio. If disconnected or disabled, wallpaper audio stays silent."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "此音量會儲存於這張桌布。"
+            "value": "僅此螢幕播放聲音。若未連接或未啟用，所有桌布將保持無聲。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此音量会保存于这张壁纸。"
+            "value": "仅此显示器播放声音。若未连接或未启用，所有壁纸将保持无声。"
           }
         }
       }
     },
-    "Wallpaper Volume" : {
+    "Selected display disconnected" : {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wallpaper Volume"
+            "value": "Selected display disconnected"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "桌布音量"
+            "value": "指定螢幕未連接"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "壁纸音量"
+            "value": "指定显示器未连接"
+          }
+        }
+      }
+    },
+    "Wallpaper Audio Source" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wallpaper Audio Source"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "桌布音源螢幕"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壁纸音源显示器"
+          }
+        }
+      }
+    },
+    "Controls all wallpaper audio" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controls all wallpaper audio"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "調整所有桌布的聲音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调整所有壁纸的声音"
+          }
+        }
+      }
+    },
+    "All displays" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All displays"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有螢幕"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有显示器"
+          }
+        }
+      }
+    },
+    "Overall Volume" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overall Volume"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "總音量"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "总音量"
           }
         }
       }
@@ -217,6 +309,10 @@
     "%lld" : {
 
     },
+    "%lld%%" : {
+      "comment" : "A slider that lets the user adjust the volume of a wallpaper. The value is shown as a percentage.",
+      "isCommentAutoGenerated" : true
+    },
     "%lldx%lld" : {
       "comment" : "A label displaying the screen resolution in pixels. The first argument is the width of the screen in pixels. The second argument is the height of the screen in pixels.",
       "isCommentAutoGenerated" : true,
@@ -238,6 +334,10 @@
           }
         }
       }
+    },
+    "0%" : {
+      "comment" : "A label for the minimum value of a slider.",
+      "isCommentAutoGenerated" : true
     },
     "1 per page (developer)" : {
 
@@ -271,6 +371,10 @@
           }
         }
       }
+    },
+    "100%" : {
+      "comment" : "A label for the maximum value of a slider.",
+      "isCommentAutoGenerated" : true
     },
     "2048x2048 MacBook Pro 14''" : {
       "extractionState" : "stale",
@@ -382,6 +486,52 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "全选"
+          }
+        }
+      }
+    },
+    "All wallpapers are muted. Your volume setting is saved." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All wallpapers are muted. Your volume setting is saved."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有壁纸目前均为静音，音量设置仍会保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有桌布目前均為靜音，音量設定仍會儲存。"
+          }
+        }
+      }
+    },
+    "All wallpapers muted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All wallpapers muted"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有壁纸已静音"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有桌布已靜音"
           }
         }
       }
@@ -1972,6 +2122,29 @@
         }
       }
     },
+    "Saved for this wallpaper." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved for this wallpaper."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此音量会保存于这张壁纸。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此音量會儲存於這張桌布。"
+          }
+        }
+      }
+    },
     "Scheme Color" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2431,6 +2604,7 @@
       }
     },
     "Volume" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2502,6 +2676,29 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "壁纸标题"
+          }
+        }
+      }
+    },
+    "Wallpaper Volume" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wallpaper Volume"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "壁纸音量"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "桌布音量"
           }
         }
       }

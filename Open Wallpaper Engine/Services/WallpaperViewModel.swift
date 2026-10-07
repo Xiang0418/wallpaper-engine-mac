@@ -156,6 +156,14 @@ class WallpaperViewModel: ObservableObject {
         }
     }
 
+    /// Persist the chosen display even while disconnected; never silently switch sources.
+    @Published var audioSourceScreenId: String {
+        didSet {
+            volumeDefaults.set(audioSourceScreenId, forKey: "WallpaperAudioSourceScreen")
+            WallpaperPlaybackSessions.shared.selectAudioSource(screenId: audioSourceScreenId)
+        }
+    }
+
     private static let volumesKey = "WallpaperVolumeLevels"
     private let volumeDefaults: UserDefaults
     @Published private(set) var wallpaperVolumes: [String: Float] = [:]
@@ -195,6 +203,7 @@ class WallpaperViewModel: ObservableObject {
 
     init(volumeDefaults: UserDefaults = .standard) {
         self.volumeDefaults = volumeDefaults
+        audioSourceScreenId = volumeDefaults.string(forKey: "WallpaperAudioSourceScreen") ?? Self.mainScreenId()
         wallpaperVolumes = (volumeDefaults.dictionary(forKey: Self.volumesKey) ?? [:])
             .compactMapValues { value in
                 guard let number = value as? NSNumber, number.floatValue.isFinite else { return nil }
@@ -225,6 +234,7 @@ class WallpaperViewModel: ObservableObject {
 
         // Load recent wallpapers
         loadRecents()
+        WallpaperPlaybackSessions.shared.selectAudioSource(screenId: audioSourceScreenId)
     }
 
     // MARK: - Screen ID helpers

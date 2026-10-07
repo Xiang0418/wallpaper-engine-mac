@@ -69,23 +69,16 @@ extension AppDelegate {
         guard let muteIndex = menu.items.firstIndex(where: {
             $0.action == #selector(mute) || $0.action == #selector(unmute)
         }) else { return }
-        var insertionIndex = muteIndex
-        for screen in NSScreen.screens {
-            let screenId = WallpaperViewModel.screenId(for: screen)
-            let wallpaper = wallpaperViewModel.wallpaper(for: screenId)
-            guard wallpaperViewModel.isScreenEnabled(screenId), WallpaperViewModel.supportsVolume(wallpaper) else { continue }
-            let item = NSMenuItem()
-            item.tag = tag
-            item.view = WallpaperVolumeMenuView(model: wallpaperViewModel, wallpaper: wallpaper,
-                                                screenName: screen.localizedName)
-            menu.insertItem(item, at: insertionIndex)
-            insertionIndex += 1
-        }
-        if insertionIndex > muteIndex {
-            let separator = NSMenuItem.separator()
-            separator.tag = tag
-            menu.insertItem(separator, at: insertionIndex)
-        }
+        let item = NSMenuItem()
+        item.tag = tag
+        let sourceName = NSScreen.screens.first {
+            WallpaperViewModel.screenId(for: $0) == wallpaperViewModel.audioSourceScreenId
+        }?.localizedName ?? String(localized: "Selected display disconnected")
+        item.view = WallpaperVolumeMenuView(model: wallpaperViewModel, screenName: sourceName)
+        menu.insertItem(item, at: muteIndex)
+        let separator = NSMenuItem.separator()
+        separator.tag = tag
+        menu.insertItem(separator, at: muteIndex + 1)
     }
 
     func setStatusMenu() {

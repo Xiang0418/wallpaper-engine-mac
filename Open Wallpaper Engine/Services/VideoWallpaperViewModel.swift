@@ -9,7 +9,26 @@ import AVKit
 import SwiftUI
 import Combine
 
-class VideoWallpaperViewModel: ObservableObject {
+class VideoWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
+    private let screenId: String
+    private var audioEnabled = true
+    func setAudioEnabled(_ enabled: Bool) {
+        audioEnabled = enabled
+        player.volume = enabled ? playVolume : 0
+    }
+    func stop() {
+        WallpaperPlaybackSessions.shared.unregister(self, screenId: screenId)
+        volumeSubscription = nil
+        cancellables.removeAll()
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        NotificationCenter.default.removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+    }
+    private func registerPlayback() {
+        WallpaperPlaybackSessions.shared.register(self, screenId: screenId)
+    }
+
     var currentWallpaper: WEWallpaper {
         didSet {
             observeVolume()
@@ -22,7 +41,8 @@ class VideoWallpaperViewModel: ObservableObject {
             NotificationCenter.default.addObserver(self, selector: #selector(playerDidFinishPlaying(_:)), name: .AVPlayerItemDidPlayToEndTime, object: newItem)
             // Force-apply rate and volume — replaceCurrentItem resets player to paused
             self.player.rate = self.playRate
-            self.player.volume = self.playVolume
+            registerPlayback()
+            self.player.volume = audioEnabled ? self.playVolume : 0
         }
     }
 
@@ -34,7 +54,7 @@ class VideoWallpaperViewModel: ObservableObject {
 
     var playVolume: Float = 0 {
         didSet {
-            self.player.volume = playVolume
+            self.player.volume = audioEnabled ? playVolume : 0
         }
     }
 
@@ -42,7 +62,8 @@ class VideoWallpaperViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var volumeSubscription: AnyCancellable?
 
-    init(wallpaper currentWallpaper: WEWallpaper) {
+    init(wallpaper currentWallpaper: WEWallpaper, screenId: String = UUID().uuidString) {
+        self.screenId = screenId
         self.currentWallpaper = currentWallpaper
         self.player = AVPlayer(url: currentWallpaper.wallpaperDirectory.appending(path: currentWallpaper.project.file))
         NotificationCenter.default.addObserver(self, selector: #selector(playerDidFinishPlaying(_:)), name: .AVPlayerItemDidPlayToEndTime, object: self.player.currentItem)
@@ -58,6 +79,7 @@ class VideoWallpaperViewModel: ObservableObject {
             }
             .store(in: &cancellables)
         observeVolume()
+        registerPlayback()
     }
 
     private func observeVolume() {
@@ -66,6 +88,7 @@ class VideoWallpaperViewModel: ObservableObject {
     }
 
     deinit {
+        stop()
         NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }

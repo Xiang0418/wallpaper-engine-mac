@@ -49,6 +49,14 @@ production controls in light/dark appearances to `/tmp/we-volume-light.png` and
 
 Volumes are saved by standardized wallpaper directory. The same wallpaper on two
 screens shares its saved percentage. Different wallpapers retain independent
-percentages. The menu lists enabled screens with supported scene/video wallpapers;
+percentages. The menu has a single overall-volume control;
 web wallpaper volume is not exposed because its playback adapter does not support
 volume control. Global mute silences all players without changing saved levels.
+
+Display Settings selects one audio-source screen, persisted across restart. Other
+screens stay silent even when they show a different wallpaper. If the chosen
+screen disconnects or is disabled, no other screen automatically takes over.
+Display changes reuse existing windows; removed/replaced screen sessions are
+explicitly stopped before teardown. The regression suite retains retired scene
+models, replaces the same screen repeatedly, sends stale wake events, and verifies
+single-source sound plus source switching/disconnect/reconnect behavior.
