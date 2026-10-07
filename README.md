@@ -77,20 +77,20 @@ Scene wallpapers (the most common type on Steam Workshop) were completely unimpl
 - **Scene JSON decoder** — Parses scene.json with flexible decoding that handles Wallpaper Engine's polymorphic fields (values can be plain types or `{"script":..,"value":..}` objects)
 - **SpriteKit renderer** — Renders scene image layers as SKSpriteNodes with correct positioning, sizing, alpha, color tinting, and blend modes
 - **Preview fallback** — Falls back to preview.jpg/png/gif when textures can't be extracted
-- **TEXI format detection** — Quickly identifies and skips DXT-compressed textures that can't be decoded
+- **Texture decoding and layer hierarchy** — LZ4, RGBA8888, R8/RG88 and BC1/BC2/BC3 decoding, parent transforms/visibility, packaged fonts and fixture-specific opacity, spin and rounded-frame effects. See [rendering checks and scope](tests/README.md#phase-two-rendering).
 
 ### Import — Fixed folder import
 The import panel now correctly handles both individual wallpaper folders and parent directories containing multiple wallpapers.
 
 ## Current Limitations
 
-- **DXT textures** — Wallpapers using DXT1/DXT5 compressed textures (TEXI format 4/7/8) cannot be rendered. These are GPU-native compressed formats that require either a software decompressor or Metal-based rendering. The app falls back to the preview image for these wallpapers.
-- **Particle effects** — Scene particle systems (rain, snow, sparkles) are parsed but disabled in rendering to avoid visual artifacts. The particle mapping code exists but needs refinement.
-- **Audio-reactive scripts** — Wallpaper Engine's JavaScript-based audio visualization scripts are not executed. Properties with scripts fall back to their static `value`.
-- **Shader effects** — Custom GLSL shaders (bloom, blur, color correction) are not applied.
+- **Texture scope** — The first image/mipmap is decoded; animated texture sequences and other pixel formats remain unsupported.
+- **Particle effects** — The cursor-controlled rope trail in fixture 3799672625 is supported; general particle systems remain incomplete.
+- **Scene runtime** — Fixture SceneScript, live clocks, 24 launchers and package-music spectrum are integrated. See [scope and tests](tests/README.md#phase-three-runtime-and-integration).
+- **Shader effects** — Selected effects used by fixture 3799672625 are ported. Arbitrary GLSL, bloom and blur remain unsupported; unsupported effects are logged.
 - **Camera parallax** — Mouse-tracking camera movement is not implemented.
 - **Animated scenes** — Sprite animations and timeline-based object animations are not supported.
-- **Some JPEG thumbnails** — A small number of TEXB format 1 files contain non-standard JPEG data that macOS cannot decode. These are typically DXT-compressed textures misidentified as format 1.
+- **Image containers** — Encoded JPEG/PNG is read from declared mip payloads. Invalid or unsupported media retains the preview fallback.
 
 ## Supported Wallpaper Types
 
@@ -99,8 +99,8 @@ The import panel now correctly handles both individual wallpaper folders and par
 | Video (.mp4, .webm) | Working (original) |
 | Web (HTML/WebGL) | Working (patched) |
 | Scene (static images) | Working (new) |
-| Scene (particles) | Partial (disabled) |
-| Scene (DXT textures) | Preview fallback |
+| Scene (particles) | Fixture rope trail |
+| Scene (DXT textures) | BC1/BC2/BC3 software decoding |
 | Application | Not supported |
 
 ## Build from Source

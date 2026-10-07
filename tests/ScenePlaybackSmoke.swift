@@ -50,7 +50,7 @@ final class AppDelegate {
         let directory: URL = value(model, "temporaryDirectory")!
         check(audio.count == 1 && audio[0].0.numberOfLoops == -1, "Creates independent looping music player")
         check(player.rate == 0 && !audio[0].0.isPlaying, "Starts paused when global playback is paused")
-        let videoNode = model.skScene!.children.compactMap { $0 as? SKVideoNode }.first!
+        let videoNode = model.skScene!.descendants.compactMap { $0 as? SKVideoNode }.first!
         check(videoNode.isHidden, "Preview remains before first decoded frame")
         AppDelegate.shared.wallpaperViewModel.playRate = 1
         spin(3)
@@ -95,7 +95,7 @@ final class AppDelegate {
         try png.write(to: broken.appendingPathComponent("icon.png"))
         try png.write(to: broken.appendingPathComponent("preview.png"))
         model.currentWallpaper = WEWallpaper(project: .init(file: "scene.json", title: "Broken"), wallpaperDirectory: broken)
-        let sprites = model.skScene!.children.compactMap { $0 as? SKSpriteNode }
+        let sprites = model.skScene!.descendants.compactMap { $0 as? SKSpriteNode }
         check(sprites.count == 2, "Small overlay successfully loads alongside preview")
         check(sprites.contains { $0.zPosition == 1_000_000 && !$0.isHidden }, "Failed main background keeps preview above small overlay")
         check(model.skScene!.children.contains { ($0 as? SKLabelNode)?.text?.contains("Broken background") == true }, "Background failure identifies failed object")
@@ -109,4 +109,8 @@ final class AppDelegate {
         }
         print("All scene playback checks passed")
     }
+}
+
+extension SKNode {
+    var descendants: [SKNode] { children.flatMap { [$0] + $0.descendants } }
 }

@@ -33,8 +33,8 @@ struct SceneWallpaperView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> SKView {
-        let skView = SKView(frame: .zero)
-        skView.ignoresSiblingOrder = true
+        let skView = InteractiveWallpaperView(frame: .zero)
+        skView.ignoresSiblingOrder = false
         skView.allowsTransparency = false
         skView.preferredFramesPerSecond = Int(AppDelegate.shared.globalSettingsViewModel.settings.fps)
 
