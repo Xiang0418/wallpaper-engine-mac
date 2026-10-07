@@ -1000,6 +1000,12 @@ extension SceneWallpaperViewModel {
             step += 1
             source += "{ if (\(enabledName) > 0.5) { \(body) } }\n"
         }
+        // The exported spectrum opacity is very faint over bright wallpaper.
+        // Boost this generated overlay only; preserve zero opacity and leave the
+        // separate cover texture and ordinary opacity effects unchanged.
+        if uniforms.contains(where: { $0.name == "u_audioSpectrum" }) {
+            source += "result.a = clamp(result.a * 3.0, 0.0, 1.0);\n"
+        }
         // SpriteKit consumes premultiplied output. Preserve the layer's tint and alpha.
         source = "void main() { vec2 uv = v_tex_coord; " + source
             + " vec4 c = result; c.rgb *= c.a; gl_FragColor = c * v_color_mix.a; }"
