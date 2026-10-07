@@ -1,29 +1,10 @@
-//
-//  TEXParser.swift
-//  Open Wallpaper Engine
-//
-//  Parse Wallpaper Engine TEXV texture container files.
-//  Structure: TEXV0005 > TEXI (metadata) > TEXB (image data).
-//  Supports embedded JPEG/PNG images and MP4 video textures.
-//
-
 import Cocoa
 import Foundation
 
-struct TEXMetadata {
-    let format: UInt32
-    let width: UInt32
-    let height: UInt32
-    let textureWidth: UInt32  // power-of-2 padded
-    let textureHeight: UInt32
-}
-
-class TEXParser {
+/// TEXV0005 containers. TEXI dimensions are allocated size followed by content size.
+final class TEXParser {
     private let data: Data
-
-    init(data: Data) {
-        self.data = Data(data)
-    }
+    init(data: Data) { self.data = Data(data) }
 
     /// Read the first uncompressed mip payload of a TEXB0004 video texture.
     /// Validate the MP4 file-type box rather than scanning compressed pixels for magic bytes.
@@ -57,192 +38,159 @@ class TEXParser {
         return payload
     }
 
-    /// Extract the image from this TEX container.
-    /// Returns nil if the format is unsupported (e.g. DXT).
+    private struct Mip {
+        let format: Int, width: Int, height: Int, contentWidth: Int, contentHeight: Int
+        let encodedFormat: UInt32
+        let bytes: [UInt8]
+    }
+
+    private func firstMip() -> Mip? {
+        guard data.starts(with: Data("TEXV0005\0TEXI0001\0".utf8)), data.count >= 46 else { return nil }
+        var cursor = 18
+        func u32() -> UInt32? {
+            guard cursor <= data.count - 4 else { return nil }
+            defer { cursor += 4 }
+            return (0..<4).reduce(0) { $0 | UInt32(data[cursor + $1]) << ($1 * 8) }
+        }
+        guard let format = u32(), u32() != nil, u32() != nil, u32() != nil,
+              let cw = u32(), let ch = u32(), u32() != nil else { return nil }
+        guard cursor + 9 <= data.count,
+              let section = String(data: data[cursor..<cursor+8], encoding: .ascii),
+              ["TEXB0001", "TEXB0002", "TEXB0003", "TEXB0004"].contains(section),
+              data[cursor+8] == 0 else { return nil }
+        cursor += 9
+        guard let count = u32(), count > 0 else { return nil }
+        var encoded: UInt32 = .max
+        if section >= "TEXB0003" { guard let value = u32() else { return nil }; encoded = value }
+        if section == "TEXB0004" { guard u32() != nil else { return nil } }
+        guard let mips = u32(), mips > 0, let w = u32(), let h = u32(),
+              w > 0, h > 0, w <= 16384, h <= 16384,
+              UInt64(w) * UInt64(h) <= 64 * 1024 * 1024 else { return nil }
+        var compressed: UInt32 = 0, unpacked: UInt32 = 0
+        if section >= "TEXB0002" {
+            guard let c = u32(), let n = u32(), c <= 1, n <= 256 * 1024 * 1024 else { return nil }
+            compressed = c; unpacked = n
+        }
+        guard let length = u32(), Int(length) <= data.count - cursor else { return nil }
+        var bytes = Array(data[cursor..<cursor+Int(length)])
+        if compressed == 1 {
+            guard let decoded = Self.decodeLZ4(bytes, size: Int(unpacked)) else { return nil }
+            bytes = decoded
+        }
+        return Mip(format: Int(format), width: Int(w), height: Int(h),
+                   contentWidth: min(Int(cw), Int(w)), contentHeight: min(Int(ch), Int(h)),
+                   encodedFormat: encoded, bytes: bytes)
+    }
+
+    /// Raw LZ4 blocks (not Apple's framed COMPRESSION_LZ4 stream).
+    static func decodeLZ4(_ input: [UInt8], size: Int) -> [UInt8]? {
+        guard size > 0, size <= 256 * 1024 * 1024 else { return nil }
+        var out = [UInt8](); out.reserveCapacity(size)
+        var i = 0
+        func length(_ initial: Int) -> Int? {
+            var n = initial
+            if n == 15 {
+                while true {
+                    guard i < input.count else { return nil }
+                    let byte = Int(input[i]); i += 1; n += byte
+                    guard n <= size else { return nil }
+                    if byte != 255 { break }
+                }
+            }
+            return n
+        }
+        while i < input.count {
+            let token = input[i]; i += 1
+            guard let literals = length(Int(token >> 4)), literals <= input.count - i,
+                  literals <= size - out.count else { return nil }
+            out.append(contentsOf: input[i..<i+literals]); i += literals
+            if i == input.count { break }
+            guard i + 2 <= input.count else { return nil }
+            let offset = Int(input[i]) | Int(input[i+1]) << 8; i += 2
+            guard offset > 0, offset <= out.count, let match = length(Int(token & 15)),
+                  match + 4 <= size - out.count else { return nil }
+            for _ in 0..<match+4 { out.append(out[out.count-offset]) }
+        }
+        return out.count == size ? out : nil
+    }
+
     func extractImage() -> NSImage? {
-        // Video data can contain incidental JPEG markers that are not image resources.
-        guard extractVideoData() == nil else { return nil }
-        // Check TEXI format — format 4+ is DXT compressed (4=DXT1, 8=DXT5)
-        let texiMeta = readTEXIMetadata()
-        if let meta = texiMeta, meta.format >= 4 {
-            NSLog("[TEXParser] TEXI format %d (DXT %dx%d), skipping image scan (%d bytes)", meta.format, meta.width, meta.height, data.count)
-            return nil
+        guard extractVideoData() == nil, let mip = firstMip() else { return nil }
+        if mip.encodedFormat != .max {
+            // Decode only the declared payload; never scan pixel bytes for JPEG markers.
+            return NSImage(data: Data(mip.bytes))
         }
-
-        // Check TEXB format — format 2+ is DXT compressed, no extractable image
-        let texbFmt = readTEXBFormat()
-        if texbFmt >= 2 {
-            NSLog("[TEXParser] TEXB format %d (DXT), skipping image scan (%d bytes)", texbFmt, data.count)
-            return nil
-        }
-
-        // Find TEXB section which contains the actual image data
-        guard let texbRange = findSection("TEXB") else {
-            NSLog("[TEXParser] TEXB section not found in %d bytes", data.count)
-            return nil
-        }
-
-        let texbData = data[texbRange]
-        NSLog("[TEXParser] TEXB found: range=%d..%d (%d bytes) fmt=%d", texbRange.lowerBound, texbRange.upperBound, texbData.count, texbFmt)
-
-        // Look for JPEG magic bytes (FFD8) within TEXB
-        if let jpegOffset = findJPEGMagic(in: texbData) {
-            // Try to find the JPEG end marker (FFD9) to avoid trailing garbage
-            let jpegData: Data
-            if let endOffset = findJPEGEnd(in: texbData, from: jpegOffset) {
-                jpegData = Data(texbData[jpegOffset...endOffset])
-            } else {
-                jpegData = Data(texbData[jpegOffset...])
+        let count = mip.width * mip.height
+        var pixels = [UInt8](repeating: 255, count: count * 4)
+        switch mip.format {
+        case 0:
+            guard mip.bytes.count == count * 4 else { return nil }
+            pixels = mip.bytes
+        case 8, 9:
+            let channels = mip.format == 9 ? 1 : 2
+            guard mip.bytes.count == count * channels else { return nil }
+            for i in 0..<count {
+                let value = mip.bytes[i * channels]
+                pixels[i*4] = value; pixels[i*4+1] = value; pixels[i*4+2] = value
+                pixels[i*4+3] = channels == 2 ? mip.bytes[i*2+1] : 255
             }
-            NSLog("[TEXParser] JPEG found at offset %d, size=%d", jpegOffset - texbData.startIndex, jpegData.count)
-            if let image = NSImage(data: jpegData) { return image }
-            // If trimmed JPEG failed, try with all remaining data
-            if let image = NSImage(data: Data(texbData[jpegOffset...])) { return image }
+        case 4, 6, 7:
+            guard let decoded = Self.decodeBC(mip.bytes, width: mip.width, height: mip.height, format: mip.format) else { return nil }
+            pixels = decoded
+        default: return nil
         }
-
-        // Look for PNG magic bytes (89504E47) within TEXB
-        if let pngOffset = findPNGMagic(in: texbData) {
-            let pngData = Data(texbData[pngOffset...])
-            if let image = NSImage(data: pngData) { return image }
-        }
-
-        // Fallback: scan entire data for JPEG/PNG (some TEX files have non-standard layout)
-        if let jpegOffset = findJPEGMagic(in: data) {
-            let jpegData: Data
-            if let endOffset = findJPEGEnd(in: data, from: jpegOffset) {
-                jpegData = Data(data[jpegOffset...endOffset])
-            } else {
-                jpegData = Data(data[jpegOffset...])
-            }
-            if let image = NSImage(data: jpegData) { return image }
-        }
-
-        NSLog("[TEXParser] No supported image format found in TEXB (%d bytes, may be DXT)", texbData.count)
-        return nil
+        guard mip.contentWidth > 0, mip.contentHeight > 0,
+              let provider = CGDataProvider(data: Data(pixels) as CFData),
+              let full = CGImage(width: mip.width, height: mip.height, bitsPerComponent: 8, bitsPerPixel: 32,
+                                bytesPerRow: mip.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+                                provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent),
+              let cropped = full.cropping(to: CGRect(x: 0, y: 0, width: mip.contentWidth, height: mip.contentHeight)) else { return nil }
+        return NSImage(cgImage: cropped, size: CGSize(width: mip.contentWidth, height: mip.contentHeight))
     }
 
-    /// Extract raw JPEG/PNG data without creating NSImage
     func extractImageData() -> Data? {
-        guard extractVideoData() == nil else { return nil }
-        guard let texbRange = findSection("TEXB") else { return nil }
-        let texbData = data[texbRange]
-
-        if let jpegOffset = findJPEGMagic(in: texbData) {
-            return Data(texbData[jpegOffset...])
-        }
-        if let pngOffset = findPNGMagic(in: texbData) {
-            return Data(texbData[pngOffset...])
-        }
-        return nil
+        guard let image = extractImage(), let tiff = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff) else { return nil }
+        return bitmap.representation(using: .png, properties: [:])
     }
 
-    // MARK: - Private
-
-    /// Read TEXI metadata section: format, flags, width, height, textureWidth, textureHeight
-    private func readTEXIMetadata() -> TEXMetadata? {
-        guard let texiMagic = "TEXI".data(using: .ascii) else { return nil }
-        var i = data.startIndex
-        while i + 4 <= data.endIndex {
-            if data[i..<i+4] == texiMagic {
-                // Skip past "TEXIxxxx\0" (null-terminated name with version)
-                var j = i + 4
-                while j < data.endIndex && data[j] != 0 { j += 1 }
-                j += 1 // skip null byte
-                guard j + 24 <= data.endIndex else { return nil }
-                func u32(_ off: Int) -> UInt32 {
-                    UInt32(data[j+off]) | (UInt32(data[j+off+1]) << 8)
-                    | (UInt32(data[j+off+2]) << 16) | (UInt32(data[j+off+3]) << 24)
-                }
-                return TEXMetadata(format: u32(0), width: u32(8), height: u32(12),
-                                   textureWidth: u32(16), textureHeight: u32(20))
+    /// BC1/BC2/BC3 software decoding also works on Macs without BC texture support.
+    static func decodeBC(_ bytes: [UInt8], width: Int, height: Int, format: Int) -> [UInt8]? {
+        guard width > 0, height > 0, width <= 16384, height <= 16384,
+              width * height <= 64 * 1024 * 1024, [4, 6, 7].contains(format) else { return nil }
+        let stride = format == 7 ? 8 : 16
+        let columns = (width+3)/4, rows = (height+3)/4
+        guard bytes.count == columns * rows * stride else { return nil }
+        var out = [UInt8](repeating: 0, count: width * height * 4)
+        func rgb(_ v: Int) -> [Int] { [((v>>11)&31)*255/31, ((v>>5)&63)*255/63, (v&31)*255/31] }
+        for by in 0..<rows { for bx in 0..<columns {
+            let base = (by*columns+bx)*stride, c = base + (format == 7 ? 0 : 8)
+            let a = Int(bytes[c]) | Int(bytes[c+1])<<8, b = Int(bytes[c+2]) | Int(bytes[c+3])<<8
+            var colors = [rgb(a), rgb(b), [0,0,0], [0,0,0]]
+            for k in 0..<3 {
+                colors[2][k] = a > b || format != 7 ? (2*colors[0][k]+colors[1][k])/3 : (colors[0][k]+colors[1][k])/2
+                colors[3][k] = a > b || format != 7 ? (colors[0][k]+2*colors[1][k])/3 : 0
             }
-            i += 1
-        }
-        return nil
-    }
-
-    /// Read the TEXB format field (first uint32 after the null-terminated section name).
-    /// Format 1 = image-extractable, Format 2 = DXT5, etc.
-    private func readTEXBFormat() -> Int {
-        guard let texbMagic = "TEXB".data(using: .ascii) else { return -1 }
-        var i = data.startIndex
-        while i + 4 <= data.endIndex {
-            if data[i..<i+4] == texbMagic {
-                // Skip past "TEXBxxxx\0" (null-terminated name with version)
-                var j = i + 4
-                while j < data.endIndex && data[j] != 0 { j += 1 }
-                j += 1 // skip null byte
-                guard j + 4 <= data.endIndex else { return -1 }
-                return Int(UInt32(data[j])
-                    | (UInt32(data[j+1]) << 8)
-                    | (UInt32(data[j+2]) << 16)
-                    | (UInt32(data[j+3]) << 24))
+            var alpha = [Int(bytes[base]), Int(bytes[base+1])]
+            if format == 4 {
+                if alpha[0] > alpha[1] { for n in 1...6 { alpha.append(((7-n)*alpha[0]+n*alpha[1])/7) } }
+                else { for n in 1...4 { alpha.append(((5-n)*alpha[0]+n*alpha[1])/5) }; alpha += [0,255] }
             }
-            i += 1
-        }
-        return -1
-    }
-
-    /// Find a named section (e.g. "TEXI", "TEXB") in the TEX data
-    private func findSection(_ name: String) -> Range<Data.Index>? {
-        guard let nameData = name.data(using: .ascii) else { return nil }
-        let nameLen = nameData.count
-
-        var i = data.startIndex
-        while i + nameLen + 4 <= data.endIndex {
-            if data[i..<i+nameLen] == nameData {
-                // Section found — next 4 bytes after name are section length
-                let lenStart = i + nameLen
-                guard lenStart + 4 <= data.endIndex else { return nil }
-                let sectionLen = UInt32(data[lenStart])
-                    | (UInt32(data[lenStart+1]) << 8)
-                    | (UInt32(data[lenStart+2]) << 16)
-                    | (UInt32(data[lenStart+3]) << 24)
-                let contentStart = lenStart + 4
-                let contentEnd = contentStart + Int(sectionLen)
-                guard contentEnd <= data.endIndex else {
-                    return contentStart..<data.endIndex
-                }
-                return contentStart..<contentEnd
-            }
-            i += 1
-        }
-        return nil
-    }
-
-    /// Find JPEG end marker (FFD9) scanning from a given start position
-    private func findJPEGEnd(in slice: Data, from start: Data.Index) -> Data.Index? {
-        var i = start
-        while i + 1 < slice.endIndex {
-            if slice[i] == 0xFF && slice[i+1] == 0xD9 {
-                return i + 1  // Include the D9 byte
-            }
-            i += 1
-        }
-        return nil
-    }
-
-    private func findJPEGMagic(in slice: Data) -> Data.Index? {
-        var i = slice.startIndex
-        while i + 1 < slice.endIndex {
-            if slice[i] == 0xFF && slice[i+1] == 0xD8 {
-                return i
-            }
-            i += 1
-        }
-        return nil
-    }
-
-    private func findPNGMagic(in slice: Data) -> Data.Index? {
-        let pngMagic: [UInt8] = [0x89, 0x50, 0x4E, 0x47]
-        var i = slice.startIndex
-        while i + 3 < slice.endIndex {
-            if slice[i] == pngMagic[0] && slice[i+1] == pngMagic[1]
-                && slice[i+2] == pngMagic[2] && slice[i+3] == pngMagic[3] {
-                return i
-            }
-            i += 1
-        }
-        return nil
+            var alphaBits: UInt64 = 0
+            if format == 4 { for k in 0..<6 { alphaBits |= UInt64(bytes[base+2+k]) << (8*k) } }
+            for y in 0..<4 { for x in 0..<4 {
+                let px = bx*4+x, py = by*4+y
+                guard px < width, py < height else { continue }
+                let index = y*4+x, ci = Int((bytes[c+4+y] >> (x*2)) & 3), target = (py*width+px)*4
+                for k in 0..<3 { out[target+k] = UInt8(colors[ci][k]) }
+                var opacity = 255
+                if format == 7 && a <= b && ci == 3 { opacity = 0 }
+                if format == 4 { opacity = alpha[Int((alphaBits >> (index*3)) & 7)] }
+                if format == 6 { opacity = Int((bytes[base+index/2] >> ((index%2)*4)) & 15) * 17 }
+                out[target+3] = UInt8(opacity)
+            }}
+        }}
+        return out
     }
 }
