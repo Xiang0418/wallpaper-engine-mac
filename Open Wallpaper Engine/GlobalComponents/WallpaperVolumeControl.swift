@@ -68,9 +68,9 @@ final class WallpaperVolumeMenuView: NSView {
         percentage.frame = NSRect(x: 238, y: 87, width: 46, height: 18)
         addSubview(percentage)
 
-        let title = NSTextField(labelWithString: wallpaper?.project.title ?? (screenName.isEmpty ? String(localized: "Selected audio source") : screenName))
+        let title = NSTextField(labelWithString: wallpaper?.project.title ?? (screenName.isEmpty ? String(localized: "System main display") : screenName))
         title.lineBreakMode = .byTruncatingTail
-        title.toolTip = wallpaper?.project.title ?? (screenName.isEmpty ? String(localized: "Selected audio source") : screenName)
+        title.toolTip = wallpaper?.project.title ?? (screenName.isEmpty ? String(localized: "System main display") : screenName)
         title.font = .systemFont(ofSize: 12)
         title.textColor = .secondaryLabelColor
         title.frame = NSRect(x: 16, y: 65, width: 268, height: 18)
@@ -101,7 +101,7 @@ final class WallpaperVolumeMenuView: NSView {
                 self.slider.setAccessibilityValueDescription(self.percentage.stringValue)
                 self.detail.stringValue = master == 0
                     ? String(localized: "All wallpapers muted")
-                    : (wallpaper == nil ? String(localized: "Audio source: Display Settings") : screenName)
+                    : (wallpaper == nil ? String(localized: "Audio follows the system main display") : screenName)
             }
     }
 
@@ -124,19 +124,8 @@ struct WallpaperAudioSourceControl: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Wallpaper Audio Source")
-                .font(.headline)
-            Picker("Wallpaper Audio Source", selection: $wallpaperViewModel.audioSourceScreenId) {
-                ForEach(NSScreen.screens, id: \.self) { screen in
-                    Text(screen.localizedName).tag(WallpaperViewModel.screenId(for: screen))
-                }
-                if !NSScreen.screens.contains(where: { WallpaperViewModel.screenId(for: $0) == wallpaperViewModel.audioSourceScreenId }) {
-                    Text("Selected display disconnected").tag(wallpaperViewModel.audioSourceScreenId)
-                }
-            }
-            .labelsHidden()
-            .accessibilityLabel(Text("Wallpaper Audio Source"))
-            Text("Only this display plays audio. If disconnected or disabled, wallpaper audio stays silent.")
+            Label("Audio follows the system main display", systemImage: "speaker.wave.2.fill")
+            Text("Each display can use a different wallpaper. Only the system main display plays audio.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

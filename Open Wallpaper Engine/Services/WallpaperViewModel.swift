@@ -156,12 +156,12 @@ class WallpaperViewModel: ObservableObject {
         }
     }
 
-    /// Persist the chosen display even while disconnected; never silently switch sources.
-    @Published var audioSourceScreenId: String {
-        didSet {
-            volumeDefaults.set(audioSourceScreenId, forKey: "WallpaperAudioSourceScreen")
-            WallpaperPlaybackSessions.shared.selectAudioSource(screenId: audioSourceScreenId)
-        }
+    /// Audio routing is independent from the display selected for wallpaper editing.
+    @Published private(set) var audioSourceScreenId: String
+
+    func updateMainDisplayAudioSource(screenId: String? = nil) {
+        audioSourceScreenId = screenId ?? Self.mainScreenId()
+        WallpaperPlaybackSessions.shared.selectAudioSource(screenId: audioSourceScreenId)
     }
 
     private static let volumesKey = "WallpaperVolumeLevels"
@@ -203,7 +203,7 @@ class WallpaperViewModel: ObservableObject {
 
     init(volumeDefaults: UserDefaults = .standard) {
         self.volumeDefaults = volumeDefaults
-        audioSourceScreenId = volumeDefaults.string(forKey: "WallpaperAudioSourceScreen") ?? Self.mainScreenId()
+        audioSourceScreenId = Self.mainScreenId()
         wallpaperVolumes = (volumeDefaults.dictionary(forKey: Self.volumesKey) ?? [:])
             .compactMapValues { value in
                 guard let number = value as? NSNumber, number.floatValue.isFinite else { return nil }
@@ -245,8 +245,8 @@ class WallpaperViewModel: ObservableObject {
     }
 
     static func mainScreenId() -> String {
-        guard let main = NSScreen.main else { return "0" }
-        return screenId(for: main)
+        // NSScreen.main follows keyboard focus; CGMainDisplayID is the system primary display.
+        String(CGMainDisplayID())
     }
 
     static func screenName(for screen: NSScreen) -> String {

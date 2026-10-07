@@ -53,10 +53,17 @@ percentages. The menu has a single overall-volume control;
 web wallpaper volume is not exposed because its playback adapter does not support
 volume control. Global mute silences all players without changing saved levels.
 
-Display Settings selects one audio-source screen, persisted across restart. Other
-screens stay silent even when they show a different wallpaper. If the chosen
-screen disconnects or is disabled, no other screen automatically takes over.
+Audio follows `CGMainDisplayID()` on display-configuration changes, independently
+of `selectedScreenId` used for wallpaper editing. Each display retains its own
+wallpaper. Only the system main display is audible; changing the system primary
+switches audio without changing any wallpaper assignment. A disabled main display
+has no audible session. Old manually saved audio-source preferences are ignored.
 Display changes reuse existing windows; removed/replaced screen sessions are
 explicitly stopped before teardown. The regression suite retains retired scene
 models, replaces the same screen repeatedly, sends stale wake events, and verifies
 single-source sound plus source switching/disconnect/reconnect behavior.
+
+The volume suite also copies an NSMenu containing the custom slider view (the
+previous crash path), checks that decoded controls bind to live volume, and tests
+independent wallpaper assignments while transferring sound between main displays.
+Dock menus are constructed afresh rather than copying live custom views.

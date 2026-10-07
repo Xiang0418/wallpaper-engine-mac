@@ -1,186 +1,25 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Audio source: Display Settings" : {
+    "System main display" : {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Audio source: Display Settings"
+            "value": "System main display"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "可在顯示器設定選擇音源"
+            "value": "系統主螢幕"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "可在显示器设置选择音源"
-          }
-        }
-      }
-    },
-    "Selected audio source" : {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected audio source"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "指定的音源螢幕"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "指定的音源显示器"
-          }
-        }
-      }
-    },
-    "Only this display plays audio. If disconnected or disabled, wallpaper audio stays silent." : {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Only this display plays audio. If disconnected or disabled, wallpaper audio stays silent."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "僅此螢幕播放聲音。若未連接或未啟用，所有桌布將保持無聲。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "仅此显示器播放声音。若未连接或未启用，所有壁纸将保持无声。"
-          }
-        }
-      }
-    },
-    "Selected display disconnected" : {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected display disconnected"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "指定螢幕未連接"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "指定显示器未连接"
-          }
-        }
-      }
-    },
-    "Wallpaper Audio Source" : {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wallpaper Audio Source"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "桌布音源螢幕"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "壁纸音源显示器"
-          }
-        }
-      }
-    },
-    "Controls all wallpaper audio" : {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Controls all wallpaper audio"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "調整所有桌布的聲音"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "调整所有壁纸的声音"
-          }
-        }
-      }
-    },
-    "All displays" : {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "All displays"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "所有螢幕"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "所有显示器"
-          }
-        }
-      }
-    },
-    "Overall Volume" : {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Overall Volume"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "總音量"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "总音量"
+            "value": "系统主显示器"
           }
         }
       }
@@ -490,6 +329,29 @@
         }
       }
     },
+    "All displays" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All displays"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有显示器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有螢幕"
+          }
+        }
+      }
+    },
     "All wallpapers are muted. Your volume setting is saved." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -609,12 +471,58 @@
         }
       }
     },
+    "Audio follows the system main display" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio follows the system main display"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聲音跟隨系統主螢幕"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "声音跟随系统主显示器"
+          }
+        }
+      }
+    },
     "Audio Output" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "音频输出"
+          }
+        }
+      }
+    },
+    "Audio source: Display Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio source: Display Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可在显示器设置选择音源"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可在顯示器設定選擇音源"
           }
         }
       }
@@ -799,6 +707,29 @@
       "comment" : "A heading for the list of contributors to the Open Wallpaper Engine.",
       "isCommentAutoGenerated" : true
     },
+    "Controls all wallpaper audio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Controls all wallpaper audio"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调整所有壁纸的声音"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "調整所有桌布的聲音"
+          }
+        }
+      }
+    },
     "Copy" : {
       "localizations" : {
         "zh-Hans" : {
@@ -955,6 +886,29 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "双显示器"
+          }
+        }
+      }
+    },
+    "Each display can use a different wallpaper. Only the system main display plays audio." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each display can use a different wallpaper. Only the system main display plays audio."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每個螢幕可使用不同桌布，僅系統主螢幕播放聲音。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个显示器可使用不同壁纸，仅系统主显示器播放声音。"
           }
         }
       }
@@ -1594,6 +1548,29 @@
         }
       }
     },
+    "Only this display plays audio. If disconnected or disabled, wallpaper audio stays silent." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only this display plays audio. If disconnected or disabled, wallpaper audio stays silent."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅此显示器播放声音。若未连接或未启用，所有壁纸将保持无声。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅此螢幕播放聲音。若未連接或未啟用，所有桌布將保持無聲。"
+          }
+        }
+      }
+    },
     "Open All in Finder" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1694,6 +1671,29 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "当其他应用程序播放音频时"
+          }
+        }
+      }
+    },
+    "Overall Volume" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overall Volume"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "总音量"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "總音量"
           }
         }
       }
@@ -2086,6 +2086,10 @@
         }
       }
     },
+    "Resume" : {
+      "comment" : "Title of a menu item that resumes the wallpaper playback.",
+      "isCommentAutoGenerated" : true
+    },
     "Safe start after hibernation" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2183,6 +2187,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全选"
+          }
+        }
+      }
+    },
+    "Selected audio source" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected audio source"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指定的音源显示器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指定的音源螢幕"
+          }
+        }
+      }
+    },
+    "Selected display disconnected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected display disconnected"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指定显示器未连接"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指定螢幕未連接"
           }
         }
       }
@@ -2610,6 +2660,29 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "音量"
+          }
+        }
+      }
+    },
+    "Wallpaper Audio Source" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wallpaper Audio Source"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "壁纸音源显示器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "桌布音源螢幕"
           }
         }
       }

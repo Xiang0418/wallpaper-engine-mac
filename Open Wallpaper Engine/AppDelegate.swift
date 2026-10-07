@@ -200,6 +200,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     /// Called when monitors connect/disconnect — auto-enables newly connected screens.
     @objc func screensChanged() {
+        wallpaperViewModel.updateMainDisplayAudioSource()
         let connectedIds = Set(NSScreen.screens.map { WallpaperViewModel.screenId(for: $0) })
         for id in connectedIds.subtracting(connectedScreenIds) {
             wallpaperViewModel.enabledScreens.insert(id)

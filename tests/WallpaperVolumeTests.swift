@@ -53,9 +53,9 @@ extension URL {
         defer { observation.cancel() }
         model.setVolume(0.37, for: a)
         check(close(received, 0.37) && model.volume(for: b) == 1, "Changes publish immediately and isolate wallpapers")
-        model.audioSourceScreenId = "saved-audio-screen"
+        model.updateMainDisplayAudioSource(screenId: "saved-audio-screen")
         let restored = WallpaperViewModel(volumeDefaults: defaults)
-        check(restored.audioSourceScreenId == "saved-audio-screen", "Audio source choice survives restart")
+        check(restored.audioSourceScreenId == WallpaperViewModel.mainScreenId(), "Restart follows system main display rather than stale source preference")
         check(close(restored.volume(for: a), 0.37), "Volume survives settings reload")
         var renamed = a
         renamed.project.title = "Renamed"
@@ -105,12 +105,24 @@ extension URL {
         check(copiedSlider.intValue == 23, "Decoded menu remains bound to live master volume")
         AppDelegate.shared.wallpaperViewModel.playVolume = 1
 
+        model.wallpapers = ["display-a": a, "display-b": b]
+        model.selectedScreenId = "display-b"
+        model.updateMainDisplayAudioSource(screenId: "display-a")
+        check(model.currentWallpaper.wallpaperDirectory == b.wallpaperDirectory, "Audio main display does not change wallpaper editing selection")
+        model.currentWallpaper = a
+        check(model.wallpaper(for: "display-a").wallpaperDirectory == a.wallpaperDirectory && model.wallpaper(for: "display-b").wallpaperDirectory == a.wallpaperDirectory,
+              "Wallpaper picker changes only its selected display")
+        model.currentWallpaper = b
+        model.updateMainDisplayAudioSource(screenId: "display-b")
+        check(model.wallpaper(for: "display-a").wallpaperDirectory == a.wallpaperDirectory && model.wallpaper(for: "display-b").wallpaperDirectory == b.wallpaperDirectory,
+              "Changing main display preserves different wallpapers on both screens")
+
         // Actual video player subscriptions must follow the wallpaper when switching.
         let shared = AppDelegate.shared.wallpaperViewModel
         shared.playRate = 0 // no audible playback during the test
         shared.setVolume(0.32, for: a)
         shared.setVolume(0.71, for: b)
-        shared.audioSourceScreenId = "test-video"
+        shared.updateMainDisplayAudioSource(screenId: "test-video")
         let video = VideoWallpaperViewModel(wallpaper: a, screenId: "test-video")
         check(close(video.player.volume, 0.32), "Video starts with saved wallpaper volume")
         video.currentWallpaper = b
@@ -125,7 +137,7 @@ extension URL {
         if CommandLine.arguments.count > 1 {
             let wallpaper = WEWallpaper(using: WEProject(file: "scene.json", preview: "", title: "Scene fixture", type: "scene"), where: URL(fileURLWithPath: CommandLine.arguments[1]))
             shared.setVolume(0.44, for: wallpaper)
-            shared.audioSourceScreenId = "test-scene"
+            shared.updateMainDisplayAudioSource(screenId: "test-scene")
             let scene = SceneWallpaperViewModel(wallpaper: wallpaper, screenId: "test-scene")
             defer { scene.stop() }
             let properties = Mirror(reflecting: scene).children
@@ -139,8 +151,14 @@ extension URL {
             check(player.volume == 0 && audio[0].0.volume == 0, "Scene remains muted while its saved volume changes")
             shared.playVolume = 1
             check(close(player.volume, 0.52) && close(audio[0].0.volume, 0.52), "Scene unmute restores its saved percentage")
+            shared.updateMainDisplayAudioSource(screenId: "test-video")
+            check(close(video.player.volume, 0.71) && player.volume == 0 && audio[0].0.volume == 0,
+                  "Changing main screen transfers sound between different wallpapers")
+            shared.updateMainDisplayAudioSource(screenId: "test-scene")
+            check(video.player.volume == 0 && close(audio[0].0.volume, 0.52),
+                  "Switching main screen back restores only its own wallpaper audio")
             // Repeated renderer replacement models display notifications during lid changes.
-            shared.audioSourceScreenId = "wake-display-a"
+            shared.updateMainDisplayAudioSource(screenId: "wake-display-a")
             let first = SceneWallpaperViewModel(wallpaper: wallpaper, screenId: "wake-display-a")
             let second = SceneWallpaperViewModel(wallpaper: wallpaper, screenId: "wake-display-b")
             scene.stop()
@@ -162,7 +180,7 @@ extension URL {
             first.stop()
             WallpaperPlaybackSessions.shared.stop(screenId: "wake-display-a")
             check(secondMusic.volume == 0, "Disconnecting selected source does not enable another display")
-            shared.audioSourceScreenId = "wake-display-b"
+            shared.updateMainDisplayAudioSource(screenId: "wake-display-b")
             check(secondMusic.volume > 0, "Selecting another display transfers audio ownership")
             let reconnected = SceneWallpaperViewModel(wallpaper: wallpaper, screenId: "wake-display-a")
             check(music(reconnected).volume == 0, "Reconnecting a nonselected screen stays silent")
