@@ -77,6 +77,27 @@ final class AppDelegate {
                   "Packaged text height matches font raster metrics for layer \(id)")
         }
 
+        let interactive = scene as! InteractiveWallpaperScene
+        let audio = layer(509)
+        let authoredPosition = audio.position
+        let clockPosition = layer(545).convert(.zero, to:scene)
+        for aspect in [3024.0/1964, 1.6, 21.0/9] {
+            let width = min(1920,1080*aspect), height = min(1080,1920/aspect)
+            let viewport = CGRect(x:(1920-width)/2,y:(1080-height)/2,width:width,height:height)
+            interactive.layoutAudioOverlays(in:viewport)
+            let bounds = audio.calculateAccumulatedFrame().offsetBy(dx:audio.parent!.position.x,dy:audio.parent!.position.y)
+            check(viewport.insetBy(dx:7.9,dy:7.9).contains(bounds), "Audio group stays inside cropped viewport at aspect \(aspect)")
+            let position = audio.parent!.position
+            for _ in 0..<10 {
+                interactive.scriptRuntime?.update(delta:1.0/60,cursor:CGPoint(x:-1e6,y:-1e6))
+                interactive.layoutAudioOverlays(in:viewport)
+            }
+            check(audio.parent!.position == position && audio.position == authoredPosition, "Viewport correction preserves authored coordinates without drift")
+            check(layer(545).convert(.zero,to:scene) == clockPosition, "Viewport correction leaves the clock unchanged")
+        }
+        interactive.layoutAudioOverlays(in:CGRect(x:0,y:0,width:1920,height:1080))
+        check(audio.parent!.position == .zero, "Returning to 16:9 restores original audio position")
+
         check(abs(layer(425).xScale - 1.2) < 0.0001 && (layer(425).children.first as? SKSpriteNode)?.blendMode == .add, "Flare scale and additive blending")
         check(layer(529).children.first is SKSpriteNode && (layer(529).children.first as? SKSpriteNode)?.shader != nil, "Cover mask shader is attached")
         check(model.renderingWarnings.isEmpty, "No missing materials, effects, textures or fonts")
@@ -94,6 +115,21 @@ final class AppDelegate {
         if let live = view.texture(from: scene) {
             try NSBitmapImageRep(cgImage: live.cgImage()).representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "/tmp/we-live-layout.png"))
         }
+        window.setContentSize(NSSize(width:1512,height:982))
+        view.frame = CGRect(x:0,y:0,width:1512,height:982)
+        interactive.updateViewportLayout()
+        let topLeft = scene.convertPoint(fromView:.zero)
+        let bottomRight = scene.convertPoint(fromView:CGPoint(x:1512,y:982))
+        let visible = CGRect(x:min(topLeft.x,bottomRight.x),y:min(topLeft.y,bottomRight.y),
+                             width:abs(bottomRight.x-topLeft.x),height:abs(bottomRight.y-topLeft.y))
+        let audioBounds = audio.calculateAccumulatedFrame().offsetBy(dx:audio.parent!.position.x,dy:audio.parent!.position.y)
+        check(visible.contains(audioBounds), "Actual Mac aspect-fill view retains the entire audio group")
+        if let mac = view.texture(from:scene,crop:visible) {
+            try NSBitmapImageRep(cgImage:mac.cgImage()).representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:"/tmp/we-mac-aspect-layout.png"))
+        }
+        window.setContentSize(NSSize(width:1920,height:1080))
+        view.frame = CGRect(x:0,y:0,width:1920,height:1080)
+        interactive.updateViewportLayout()
         scene.isPaused = false
         // Render static layers over the preview for repeatable visual QA.
         AppDelegate.shared.wallpaperViewModel.playRate = 0
@@ -112,7 +148,6 @@ final class AppDelegate {
             check(center > 0.9 && corner < 0.1, "GPU cover mask preserves center and removes corners")
         } else { fatalError("Cannot render cover mask") }
 
-        let interactive = scene as! InteractiveWallpaperScene
         let runtime = interactive.scriptRuntime!
         runtime.applyUserProperties(["appdockenabled":true,"appdockenable1":true,"appdockenable15":true])
         for _ in 0..<60 { runtime.update(delta:1.0/60,cursor:CGPoint(x:960,y:80)) }

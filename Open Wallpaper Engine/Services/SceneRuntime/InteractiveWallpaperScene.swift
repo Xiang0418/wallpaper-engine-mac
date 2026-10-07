@@ -9,6 +9,7 @@ final class InteractiveWallpaperScene: SKScene {
     private var lastTime: TimeInterval?
     private var trails: [(SKNode, SceneRopeTrail)] = []
     private var previousSpectrum: [Float]?
+    private var audioOverlays: [(wrapper: SKNode, root: SKNode)] = []
     private var spectrumSprites: [SKSpriteNode] = []
     var effectsDidUpdate: ((Int, [[String: Any]]) -> Void)?
     private var stopped = false
@@ -34,6 +35,22 @@ final class InteractiveWallpaperScene: SKScene {
                sprite.shader?.uniformNamed("u_audioSpectrum") != nil { spectrumSprites.append(sprite) }
 
         }
+        // Keep the authored transform available to scripts. Viewport adaptation
+        // moves a separate parent, including the cover and all sibling effects.
+        var adapted = Set<ObjectIdentifier>()
+        var roots: [SKNode] = []
+        for sprite in spectrumSprites {
+            var root: SKNode = sprite
+            while let parent = root.parent, parent !== self { root = parent }
+            guard root.parent === self, adapted.insert(ObjectIdentifier(root)).inserted else { continue }
+            roots.append(root)
+        }
+        for root in roots {
+            let wrapper = SKNode()
+            root.removeFromParent()
+            addChild(wrapper); wrapper.addChild(root)
+            audioOverlays.append((wrapper, root))
+        }
         scriptRuntime?.effectsDidUpdate = { [weak self] id, effects in
             self?.effectsDidUpdate?(id,effects)
         }
@@ -50,6 +67,7 @@ final class InteractiveWallpaperScene: SKScene {
             if view.bounds.contains(p) { point = convertPoint(fromView: p) }
         }
         scriptRuntime?.update(delta: dt, cursor: point ?? CGPoint(x: -1e6, y: -1e6))
+        updateViewportLayout()
         for (node, trail) in trails {
             var hidden = node.isHidden
             var parent = node.parent
@@ -66,12 +84,44 @@ final class InteractiveWallpaperScene: SKScene {
         }
     }
 
+    func updateViewportLayout() {
+        guard let view, view.bounds.width > 0, view.bounds.height > 0 else { return }
+        let a = convertPoint(fromView: view.bounds.origin)
+        let b = convertPoint(fromView: CGPoint(x:view.bounds.maxX, y:view.bounds.maxY))
+        layoutAudioOverlays(in: CGRect(x:min(a.x,b.x), y:min(a.y,b.y),
+                                      width:abs(b.x-a.x), height:abs(b.y-a.y)))
+    }
+
+    /// Remap only audio overlay groups into the visible part of an aspect-fill
+    /// scene. Scripts retain their authored positions and cannot accumulate drift.
+    func layoutAudioOverlays(in viewport: CGRect) {
+        guard size.width > 0, size.height > 0, viewport.width > 0, viewport.height > 0 else { return }
+        let cropped = viewport.width < size.width-0.5 || viewport.height < size.height-0.5
+        for (wrapper, root) in audioOverlays {
+            wrapper.position = .zero
+            guard cropped else { continue }
+            let bounds = root.calculateAccumulatedFrame()
+            guard !bounds.isNull, !bounds.isInfinite else { continue }
+            let safe = viewport.insetBy(dx:min(8,viewport.width/4), dy:min(8,viewport.height/4))
+            let desired = CGPoint(x:viewport.minX+root.position.x/size.width*viewport.width,
+                                  y:viewport.minY+root.position.y/size.height*viewport.height)
+            func shift(_ desired: CGFloat, low: CGFloat, high: CGFloat, min: CGFloat, max: CGFloat) -> CGFloat {
+                // Oversized groups stay centered; do not distort their contents.
+                if high-low > max-min { return (min+max-low-high)/2 }
+                return Swift.min(max-high, Swift.max(min-low, desired))
+            }
+            wrapper.position = CGPoint(
+                x:shift(desired.x-root.position.x, low:bounds.minX, high:bounds.maxX, min:safe.minX, max:safe.maxX),
+                y:shift(desired.y-root.position.y, low:bounds.minY, high:bounds.maxY, min:safe.minY, max:safe.maxY))
+        }
+    }
+
     func stop() {
         guard !stopped else { return }
         stopped = true
         scriptRuntime?.stop(); scriptRuntime = nil
         spectrumProvider = nil
-        trails.removeAll(); spectrumSprites.removeAll(); removeAllActions()
+        trails.removeAll(); spectrumSprites.removeAll(); audioOverlays.removeAll(); removeAllActions()
     }
 
     override func willMove(from view: SKView) { stop() }
@@ -127,6 +177,11 @@ final class InteractiveWallpaperView: SKView {
             return false
         }
         return true
+    }
+
+    override func layout() {
+        super.layout()
+        (scene as? InteractiveWallpaperScene)?.updateViewportLayout()
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
