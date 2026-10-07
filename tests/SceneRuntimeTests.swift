@@ -101,6 +101,27 @@ import AVFoundation
         precondition(trail.particleCount <= 10)
         for _ in 0..<20 { trail.update(delta:0.1,cursor:nil,enabled:false) }
         precondition(trail.particleCount == 0)
+        let smoothTrail = SceneRopeTrail(definition:["maxcount":100,"emitter":[["rate":25]],"initializer":[["name":"lifetimerandom","min":1,"max":1]]])
+        smoothTrail.update(delta:0.04,cursor:CGPoint(x:10,y:20),enabled:true)
+        let count = smoothTrail.particleCount
+        smoothTrail.update(delta:1.0/120,cursor:CGPoint(x:40,y:20),enabled:true)
+        precondition(smoothTrail.particleCount == count && smoothTrail.renderedTip == CGPoint(x:40,y:20))
+        precondition(smoothTrail.segmentCount >= 5, "Live head advances between 25 Hz emission ticks")
+        smoothTrail.update(delta:0.01,cursor:nil,enabled:false)
+        smoothTrail.update(delta:0.01,cursor:CGPoint(x:500,y:500),enabled:true)
+        precondition(smoothTrail.segmentCount == 0, "Leaving/reentering does not bridge disconnected paths")
+        smoothTrail.update(delta:0.008,cursor:CGPoint(x:560,y:500),enabled:true)
+        smoothTrail.update(delta:0.008,cursor:CGPoint(x:560,y:560),enabled:true)
+        precondition(smoothTrail.renderedVertices.contains { $0.x > 560 && $0.y > 500 && $0.y < 560 },
+                     "Fast turns are curved instead of connecting emission points with straight chords")
+        precondition(smoothTrail.renderedVertices.last == CGPoint(x:560,y:560))
+        let started = Date()
+        for frame in 0..<600 {
+            smoothTrail.update(delta:1.0/120,cursor:CGPoint(x:Double(frame),y:sin(Double(frame)*0.1)*100),enabled:true)
+        }
+        precondition(smoothTrail.children.count <= 1600, "Segment pool remains bounded")
+        print("Rope CPU update: \(Date().timeIntervalSince(started) / 600 * 1000) ms/frame (600 frames)")
+
         if CommandLine.arguments.count > 1 {
             errors.removeAll()
             let data = try Data(contentsOf:URL(fileURLWithPath:CommandLine.arguments[1]))

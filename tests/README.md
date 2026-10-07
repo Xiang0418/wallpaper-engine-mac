@@ -187,7 +187,7 @@ Automated checks include:
 preview background. Passing tests does not establish Windows visual parity,
 long-duration memory stability or complete support for all scene wallpapers.
 
-### Clock layout regression
+### Clock layout and rope smoothness regression
 
 Text labels retain the packaged fonts and a stable baseline across clock ticks.
 The fixture's exported heights (140, 134, 61) match the two fonts' ascender minus
@@ -201,5 +201,12 @@ SpriteKit glyph bounds rather than typographic advance. The fixed-time capture
 was visually compared with the supplied Windows screenshot; pixel-exact parity
 is not asserted.
 
+Ropes retain cursor positions every frame independently of the 25 Hz particle
+emitter. Bounded Hermite interpolation adds curved spans (up to 16 subdivisions,
+about six scene pixels apart on ordinary spans) with at most 4096 rendered segments.
+The beam has a narrow core and faint halo; it substitutes for the unavailable
+`particle/beam/beam_1` resource. Tests cover turns between emission ticks,
+disconnected cursor paths, lifetime/pool bounds and the GPU beam width.
+The CPU timing measures the trail alone, not total scene frame time.
 `we-live-layout.png` uses actual video; older preview-based images contain a baked
 clock and must not be used for clock alignment. GPU output may be 1x or 2x on Retina.

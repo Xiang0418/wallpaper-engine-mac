@@ -146,6 +146,24 @@ final class AppDelegate {
         if let texture = view.texture(from: scene) {
             try NSBitmapImageRep(cgImage: texture.cgImage()).representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "/tmp/we-phase3-integrated.png"))
         }
+        let trail = SceneRopeTrail(definition:["emitter":[["rate":25]],
+            "initializer":[["name":"lifetimerandom","min":1,"max":1],["name":"sizerandom","min":5,"max":5]],
+            "operator":[["name":"sizechange","startvalue":3.0,"endvalue":0.0,"endtime":0.5]]])
+        trail.update(delta:0.04,cursor:CGPoint(x:20,y:100),enabled:true)
+        trail.update(delta:0.04,cursor:CGPoint(x:300,y:100),enabled:true)
+        let trailGroup = SKNode()
+        let trailBackground = SKSpriteNode(color:.black,size:CGSize(width:400,height:200))
+        trailBackground.anchorPoint = .zero
+        trailBackground.zPosition = -1
+        trailGroup.addChild(trailBackground); trailGroup.addChild(trail)
+        scene.addChild(trailGroup)
+        let trailTexture = view.texture(from:trailGroup)!
+        let trailBitmap = NSBitmapImageRep(cgImage:trailTexture.cgImage())
+        let profile = (0..<trailBitmap.pixelsHigh).map { trailBitmap.colorAt(x:150,y:$0)!.usingColorSpace(.deviceRGB)!.redComponent }
+        let peak = profile.max() ?? 0
+        let corePixels = profile.filter { $0 > peak * 0.5 }.count
+        try trailBitmap.representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:"/tmp/we-thin-trail.png"))
+        check(peak > 0.1 && corePixels > 0 && corePixels <= 4,"GPU beam has a narrow luminous core, not a filled 15-pixel ribbon")
         model.stop()
         print("All phase-two rendering checks passed")
     }
