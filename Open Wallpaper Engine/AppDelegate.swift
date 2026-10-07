@@ -205,6 +205,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         for id in connectedIds.subtracting(connectedScreenIds) {
             wallpaperViewModel.enabledScreens.insert(id)
         }
+        if !connectedIds.contains(wallpaperViewModel.selectedScreenId) {
+            wallpaperViewModel.selectedScreenId = WallpaperViewModel.mainScreenId()
+        }
         rebuildWallpaperWindows()
     }
     
