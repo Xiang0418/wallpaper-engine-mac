@@ -8,6 +8,7 @@ final class InteractiveWallpaperScene: SKScene {
     var spectrumProvider: (() -> [Float])?
     private var lastTime: TimeInterval?
     private var trails: [(SKNode, SceneRopeTrail)] = []
+    private var previousSpectrum: [Float]?
     private var spectrumSprites: [SKSpriteNode] = []
     var effectsDidUpdate: ((Int, [[String: Any]]) -> Void)?
     private var stopped = false
@@ -58,8 +59,11 @@ final class InteractiveWallpaperScene: SKScene {
         }
         let bins = spectrumProvider?() ?? Array(repeating:0,count:64)
         scriptRuntime?.setSpectrum(left: bins, right: bins)
-        let texture = SceneSpectrumTexture.texture(bins)
-        for sprite in spectrumSprites { sprite.shader?.uniformNamed("u_audioSpectrum")?.textureValue = texture }
+        if !spectrumSprites.isEmpty, bins != previousSpectrum {
+            let texture = SceneSpectrumTexture.texture(bins)
+            for sprite in spectrumSprites { sprite.shader?.uniformNamed("u_audioSpectrum")?.textureValue = texture }
+            previousSpectrum = bins
+        }
     }
 
     func stop() {

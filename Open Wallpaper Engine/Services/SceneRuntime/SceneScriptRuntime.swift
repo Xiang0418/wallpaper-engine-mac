@@ -8,6 +8,7 @@ final class SceneScriptRuntime {
     private let context = JSContext()!
     private var nodes: [Int: SKNode]
     private var contentNodes: [Int: SKNode]
+    private var interactiveIDs = Set<Int>()
     private var originalTextures: [Int: SKTexture] = [:]
     private let objects: [[String: Any]]
     private var properties: [String: Any]
@@ -55,6 +56,9 @@ final class SceneScriptRuntime {
         context.exceptionHandler = { _, error in log(error?.toString() ?? "JavaScript error") }
         context.evaluateScript(SceneScriptBootstrap.source)
         context.objectForKeyedSubscript("loadScene")?.call(withArguments: [objects, properties, size.width, size.height])
+        if let ids = context.evaluateScript("scripts.filter(s=>Object.keys(s.events).some(k=>k.startsWith('cursor')&&s.events[k])).map(s=>s.layer.id)")?.toArray() as? [Int] {
+            interactiveIDs = Set(ids)
+        }
         synchronizeNodes()
         refreshShortcutTextures()
     }
@@ -156,8 +160,7 @@ final class SceneScriptRuntime {
             var hidden = false
             while let parent = ancestor { hidden = hidden || parent.isHidden; ancestor = parent.parent }
             if hidden { continue }
-            let interactive = context.evaluateScript("scripts.some(s=>s.layer.id===\(id)&&Object.keys(s.events).some(k=>k.startsWith('cursor')&&s.events[k]))")?.toBool() ?? false
-            guard interactive else { continue }
+            guard interactiveIDs.contains(id) else { continue }
             if node.isHidden && !(object["name"] as? String == "Drag and Drop") { continue }
             let content = contentNodes[id] ?? node
             let local = content.convert(point, from: scene)
