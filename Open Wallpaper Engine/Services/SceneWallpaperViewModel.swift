@@ -8,6 +8,8 @@
 
 import SpriteKit
 import SwiftUI
+import AVFoundation
+import Combine
 
 class SceneWallpaperViewModel: ObservableObject {
     static func log(_ msg: String) {
@@ -24,6 +26,71 @@ class SceneWallpaperViewModel: ObservableObject {
     @Published var skScene: SKScene?
 
     private var pkgParser: PKGParser?
+    private var videoPlayer: AVQueuePlayer?
+    private var videoLooper: AVPlayerLooper?
+    private var videoOutput: AVPlayerItemVideoOutput?
+    private var readinessTimer: Timer?
+    private var audioPlayers: [(AVAudioPlayer, Float)] = []
+    private var temporaryDirectory: URL?
+    private var cancellables = Set<AnyCancellable>()
+    private var audioError: String?
+    private var sleeping = false
+    private var playRate: Float = 0
+    private var playVolume: Float = 0
+    private weak var fallbackNode: SKNode?
+    private weak var errorNode: SKLabelNode?
+
+    func stop() {
+        readinessTimer?.invalidate()
+        readinessTimer = nil
+        videoPlayer?.pause()
+        videoLooper?.disableLooping()
+        videoPlayer?.removeAllItems()
+        videoLooper = nil
+        videoPlayer = nil
+        videoOutput = nil
+        audioPlayers.forEach { $0.0.stop() }
+        audioPlayers.removeAll()
+        skScene?.removeAllChildren()
+        pkgParser = nil
+        if let directory = temporaryDirectory {
+            do { try FileManager.default.removeItem(at: directory) }
+            catch { Self.log("Temporary media cleanup failed: \(error)") }
+        }
+        temporaryDirectory = nil
+        audioError = nil
+    }
+
+    private func applyPlayback() {
+        let rate: Float = sleeping ? 0 : playRate
+        videoPlayer?.rate = rate
+        videoPlayer?.volume = playVolume
+        for (player, volume) in audioPlayers {
+            player.volume = volume * playVolume
+            if rate == 0 { player.pause() }
+            else { player.rate = rate; if !player.isPlaying { player.play() } }
+        }
+        skScene?.isPaused = rate == 0
+    }
+
+    private func mediaURL(data: Data, extension ext: String) throws -> URL {
+        if temporaryDirectory == nil {
+            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("WE-scene-" + UUID().uuidString)
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            temporaryDirectory = dir
+        }
+        let url = temporaryDirectory!.appendingPathComponent(UUID().uuidString).appendingPathExtension(ext)
+        try data.write(to: url, options: .atomic)
+        return url
+    }
+
+    private func reportFailure(_ message: String) {
+        Self.log(message)
+        errorNode?.text = message
+        errorNode?.isHidden = false
+        fallbackNode?.isHidden = false
+    }
+
 
     init(wallpaper: WEWallpaper) {
         self.currentWallpaper = wallpaper
@@ -33,11 +100,23 @@ class SceneWallpaperViewModel: ObservableObject {
             name: NSWorkspace.screensDidSleepNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(systemDidWake(_:)),
-            name: NSWorkspace.didWakeNotification, object: nil)
+            name: NSWorkspace.screensDidWakeNotification, object: nil)
+        let shared = AppDelegate.shared.wallpaperViewModel
+        playRate = shared.playRate
+        playVolume = shared.playVolume
+        shared.$playRate.receive(on: DispatchQueue.main).sink { [weak self] value in
+            self?.playRate = value
+            self?.applyPlayback()
+        }.store(in: &cancellables)
+        shared.$playVolume.receive(on: DispatchQueue.main).sink { [weak self] value in
+            self?.playVolume = value
+            self?.applyPlayback()
+        }.store(in: &cancellables)
         loadScene(from: wallpaper)
     }
 
     deinit {
+        stop()
         NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
@@ -45,6 +124,7 @@ class SceneWallpaperViewModel: ObservableObject {
     // MARK: - Scene Loading
 
     func loadScene(from wallpaper: WEWallpaper) {
+        stop()
         let dir = wallpaper.wallpaperDirectory
         let sceneFile = wallpaper.project.file  // e.g. "scene.json" or "gifscene.json"
 
@@ -54,6 +134,7 @@ class SceneWallpaperViewModel: ObservableObject {
         let looseSceneURL = dir.appending(path: sceneFile)
 
         var scene: WEScene?
+        var loadError = "Scene file not found: " + sceneFile
 
         if FileManager.default.fileExists(atPath: pkgURL.path(percentEncoded: false)) {
             do {
@@ -61,6 +142,7 @@ class SceneWallpaperViewModel: ObservableObject {
                 self.pkgParser = parser
                 scene = try parser.extractJSON(named: sceneFile, as: WEScene.self)
             } catch {
+                loadError = error.localizedDescription
                 Self.log("Failed to parse PKG: \(error)")
             }
         } else if FileManager.default.fileExists(atPath: looseSceneURL.path(percentEncoded: false)) {
@@ -70,22 +152,26 @@ class SceneWallpaperViewModel: ObservableObject {
                 let data = try Data(contentsOf: looseSceneURL)
                 scene = try JSONDecoder().decode(WEScene.self, from: data)
             } catch {
+                loadError = error.localizedDescription
                 Self.log("Failed to parse loose \(sceneFile): \(error)")
             }
         }
 
         guard let scene = scene else {
-            print("[SceneVM] No scene data found")
-            NSLog("[SceneVM] No scene data found")
+            let fallback = SKScene(size: CGSize(width: 1920, height: 1080))
+            fallback.scaleMode = .aspectFill
+            addFallback(to: fallback, wallpaperDir: dir)
+            skScene = fallback
+            reportFailure("Unable to load scene: " + loadError)
             return
         }
 
         Self.log("Scene loaded: \(scene.objects.count) objects from \(sceneFile)")
         let skScene = buildSKScene(from: scene, wallpaperDir: dir)
         Self.log("SKScene built: \(skScene.children.count) children")
-        DispatchQueue.main.async {
-            self.skScene = skScene
-        }
+        self.skScene = skScene
+        loadAudio(from: scene, wallpaperDir: dir)
+        applyPlayback()
     }
 
     // MARK: - SpriteKit Scene Building
@@ -101,30 +187,152 @@ class SceneWallpaperViewModel: ObservableObject {
             skScene.backgroundColor = NSColor(red: c.r, green: c.g, blue: c.b, alpha: 1.0)
         }
 
-        // Show only the base background image (no effects/particles/additive layers)
-        var hasImage = false
-        for obj in scene.objects {
-            guard obj.visible != false, obj.image != nil else { continue }
-            // Skip additive/overlay layers that look like effects
-            if let node = buildImageNode(obj, wallpaperDir: wallpaperDir) {
-                if node.blendMode == .add { continue }
-                skScene.addChild(node)
-                hasImage = true
+        addFallback(to: skScene, wallpaperDir: wallpaperDir)
+        // Select the largest visible image before loading any assets. A failed background
+        // must not be mistaken for success merely because a small overlay decoded.
+        let background = scene.objects.filter { $0.visible != false && $0.image != nil }.max {
+            let a = ($0.size ?? "0 0").parseVector2()
+            let b = ($1.size ?? "0 0").parseVector2()
+            return a.0 * a.1 < b.0 * b.1
+        }
+        if let background = background {
+            if !buildVideoNode(background, in: skScene, wallpaperDir: wallpaperDir) {
+                if let node = buildImageNode(background, wallpaperDir: wallpaperDir) {
+                    skScene.addChild(node)
+                    fallbackNode?.isHidden = true
+                } else {
+                    reportFailure("Background unavailable: " + (background.name ?? background.image ?? "unknown"))
+                }
             }
+        } else {
+            reportFailure("Scene contains no supported background")
         }
 
-        // Fallback: use preview image
-        if !hasImage {
-            let previewImage = loadPreviewImage(wallpaperDir: wallpaperDir)
-            if let img = previewImage {
-                let node = SKSpriteNode(texture: SKTexture(image: img))
-                node.size = skScene.size
-                node.position = CGPoint(x: skScene.size.width / 2, y: skScene.size.height / 2)
+        // Preserve the existing static overlay support. Its success never hides fallback.
+        for (index, object) in scene.objects.enumerated() where object.visible != false && object.image != nil && object.image != background?.image {
+            if let node = buildImageNode(object, wallpaperDir: wallpaperDir), node.blendMode != .add {
+                node.zPosition = CGFloat(index + 1)
                 skScene.addChild(node)
             }
         }
-
         return skScene
+    }
+
+    private func addFallback(to scene: SKScene, wallpaperDir: URL) {
+        let node = SKSpriteNode(texture: loadPreviewImage(wallpaperDir: wallpaperDir).map(SKTexture.init(image:)))
+        node.size = scene.size
+        node.position = CGPoint(x: scene.size.width / 2, y: scene.size.height / 2)
+        node.zPosition = 1_000_000
+        node.color = .black
+        scene.addChild(node)
+        fallbackNode = node
+        let label = SKLabelNode(fontNamed: "Helvetica")
+        label.fontSize = 20
+        label.fontColor = .white
+        label.position = CGPoint(x: scene.size.width / 2, y: 40)
+        label.zPosition = 1_000_001
+        label.numberOfLines = 0
+        label.preferredMaxLayoutWidth = scene.size.width - 80
+        label.isHidden = true
+        scene.addChild(label)
+        errorNode = label
+    }
+
+    private func assetData(_ path: String, wallpaperDir: URL) -> Data? {
+        if let data = pkgParser?.extractFile(named: path) { return Data(data) }
+        return try? Data(contentsOf: wallpaperDir.appendingPathComponent(path))
+    }
+
+    private func buildVideoNode(_ object: WESceneObject, in scene: SKScene, wallpaperDir: URL) -> Bool {
+        guard let modelPath = object.image,
+              let model: WEModel = loadJSON(path: modelPath, wallpaperDir: wallpaperDir),
+              let materialPath = model.material,
+              let material: WEMaterial = loadJSON(path: materialPath, wallpaperDir: wallpaperDir),
+              let name = material.passes?.first?.textures?.first else { return false }
+        let directory = (materialPath as NSString).deletingLastPathComponent
+        for path in [directory + "/" + name + ".tex", "materials/" + name + ".tex", name + ".tex"] {
+            guard let data = assetData(path, wallpaperDir: wallpaperDir),
+                  let video = TEXParser(data: data).extractVideoData() else { continue }
+            do {
+                let url = try mediaURL(data: video, extension: "mp4")
+                let item = AVPlayerItem(url: url)
+                let player = AVQueuePlayer()
+                videoPlayer = player
+                videoLooper = AVPlayerLooper(player: player, templateItem: item)
+                let node = SKVideoNode(avPlayer: player)
+                let size = (object.size ?? "1920 1080").parseVector2()
+                node.size = CGSize(width: size.0, height: size.1)
+                let origin = (object.origin ?? "960 540 0").parseVector3()
+                node.position = CGPoint(x: origin.0, y: origin.1)
+                let scale = (object.scale ?? "1 1 1").parseVector3()
+                node.xScale = scale.0
+                node.yScale = scale.1
+                node.zRotation = (object.angles ?? "0 0 0").parseVector3().2 * .pi / 180
+                node.alpha = object.alpha ?? 1
+                node.isHidden = true
+                scene.addChild(node)
+                var elapsed: Double = 0
+                var hasFrame = false
+                readinessTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self, weak node] timer in
+                    guard let self = self, let player = self.videoPlayer else { timer.invalidate(); return }
+                    if player.status == .failed || player.currentItem?.status == .failed || self.videoLooper?.status == .failed {
+                        self.reportFailure("Background playback failed: " + (player.currentItem?.error?.localizedDescription ?? player.error?.localizedDescription ?? self.videoLooper?.error?.localizedDescription ?? "Invalid video"))
+                        node?.isHidden = true
+                        player.pause()
+                        timer.invalidate()
+                        return
+                    }
+                    guard !hasFrame else { return }
+                    if let current = player.currentItem {
+                        if self.videoOutput == nil || !current.outputs.contains(where: { $0 === self.videoOutput }) {
+                            let output = AVPlayerItemVideoOutput(pixelBufferAttributes: nil)
+                            current.add(output)
+                            self.videoOutput = output
+                        }
+                        if let output = self.videoOutput,
+                           output.copyPixelBuffer(forItemTime: current.currentTime(), itemTimeForDisplay: nil) != nil {
+                            node?.isHidden = false
+                            self.fallbackNode?.isHidden = true
+                            self.errorNode?.isHidden = self.audioError == nil
+                            hasFrame = true
+                            current.remove(output)
+                            self.videoOutput = nil
+                            elapsed = 0
+                        } else if !self.sleeping && self.playRate != 0 {
+                            elapsed += 0.1
+                            if elapsed > 15 { self.reportFailure("Background video has not produced a frame") }
+                        }
+                    }
+                }
+            } catch { reportFailure("Video extraction failed: " + error.localizedDescription) }
+            return true
+        }
+        return false
+    }
+
+    private func loadAudio(from scene: WEScene, wallpaperDir: URL) {
+        for object in scene.objects where object.visible != false && object.startsilent != true {
+            guard let path = object.sound?.first else { continue }
+            do {
+                guard let data = assetData(path, wallpaperDir: wallpaperDir) else {
+                    throw CocoaError(.fileReadNoSuchFile)
+                }
+                let url = try mediaURL(data: data, extension: (path as NSString).pathExtension)
+                let player = try AVAudioPlayer(contentsOf: url)
+                player.numberOfLoops = object.playbackmode == "loop" ? -1 : 0
+                player.enableRate = true
+                player.prepareToPlay()
+                audioPlayers.append((player, Float(min(1, max(0, object.volume ?? 1)))))
+            } catch {
+                let message = "Audio unavailable (" + path + "): " + error.localizedDescription
+                audioError = message
+                Self.log(message)
+                errorNode?.text = message
+                errorNode?.isHidden = false
+            }
+        }
+        // Video soundtrack and scene sounds are mixed, each with its own timeline.
+        // Global volume/mute affects both; a video loop never restarts background music.
     }
 
     private func loadPreviewImage(wallpaperDir: URL) -> NSImage? {
@@ -475,11 +683,13 @@ class SceneWallpaperViewModel: ObservableObject {
 
     @objc func systemWillSleep(_ notification: Notification) {
         print("[SceneVM] System is going to sleep")
-        skScene?.isPaused = true
+        sleeping = true
+        applyPlayback()
     }
 
     @objc func systemDidWake(_ notification: Notification) {
         print("[SceneVM] System woke up")
-        skScene?.isPaused = false
+        sleeping = false
+        applyPlayback()
     }
 }

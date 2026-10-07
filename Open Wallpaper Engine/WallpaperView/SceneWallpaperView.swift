@@ -20,6 +20,18 @@ struct SceneWallpaperView: NSViewRepresentable {
         self._viewModel = StateObject(wrappedValue: SceneWallpaperViewModel(wallpaper: wallpaperViewModel.wallpaper(for: screenId)))
     }
 
+    class Coordinator {
+        let model: SceneWallpaperViewModel
+        init(_ model: SceneWallpaperViewModel) { self.model = model }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(viewModel) }
+
+    static func dismantleNSView(_ view: SKView, coordinator: Coordinator) {
+        view.presentScene(nil)
+        coordinator.model.stop()
+    }
+
     func makeNSView(context: Context) -> SKView {
         let skView = SKView(frame: .zero)
         skView.ignoresSiblingOrder = true

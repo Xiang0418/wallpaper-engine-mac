@@ -56,10 +56,19 @@ struct WEOrthogonalProjection: Codable {
 /// Many WE scene fields can be either a plain value or a {"script":"..","value":..} object.
 /// This wrapper decodes the plain value and silently ignores script objects.
 private func decodeFlexible<T: Decodable>(_ type: T.Type, container: KeyedDecodingContainer<WESceneObject.CodingKeys>, key: WESceneObject.CodingKeys) -> T? {
-    try? container.decodeIfPresent(T.self, forKey: key)
+    if let value = try? container.decode(T.self, forKey: key) { return value }
+    return (try? container.decode(WEStoredValue<T>.self, forKey: key))?.value
+}
+
+private struct WEStoredValue<T: Decodable>: Decodable {
+    let value: T
 }
 
 struct WESceneObject: Codable {
+    var sound: [String]?
+    var volume: Double?
+    var playbackmode: String?
+    var startsilent: Bool?
     // Common
     var id: Int?
     var name: String?
@@ -89,11 +98,15 @@ struct WESceneObject: Codable {
         case id, name, origin, scale, angles, visible
         case image, alpha, brightness, color, colorBlendMode, size, alignment
         case solid, copybackground, parallaxDepth, perspective
-        case particle, instanceoverride
+        case particle, instanceoverride, sound, volume, playbackmode, startsilent
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        sound = try? c.decodeIfPresent([String].self, forKey: .sound)
+        volume = decodeFlexible(Double.self, container: c, key: .volume)
+        playbackmode = try? c.decodeIfPresent(String.self, forKey: .playbackmode)
+        startsilent = decodeFlexible(Bool.self, container: c, key: .startsilent)
         // Fields that are always simple types
         id = try? c.decodeIfPresent(Int.self, forKey: .id)
         name = try? c.decodeIfPresent(String.self, forKey: .name)
@@ -102,15 +115,15 @@ struct WESceneObject: Codable {
         instanceoverride = try? c.decodeIfPresent(WEInstanceOverride.self, forKey: .instanceoverride)
 
         // Fields that may be simple values or {"script":..,"value":..} objects
-        origin = try? c.decodeIfPresent(String.self, forKey: .origin)
-        scale = try? c.decodeIfPresent(String.self, forKey: .scale)
-        angles = try? c.decodeIfPresent(String.self, forKey: .angles)
-        visible = try? c.decodeIfPresent(Bool.self, forKey: .visible)
-        alpha = try? c.decodeIfPresent(Double.self, forKey: .alpha)
+        origin = decodeFlexible(String.self, container: c, key: .origin)
+        scale = decodeFlexible(String.self, container: c, key: .scale)
+        angles = decodeFlexible(String.self, container: c, key: .angles)
+        visible = decodeFlexible(Bool.self, container: c, key: .visible)
+        alpha = decodeFlexible(Double.self, container: c, key: .alpha)
         brightness = try? c.decodeIfPresent(Double.self, forKey: .brightness)
         color = try? c.decodeIfPresent(String.self, forKey: .color)
         colorBlendMode = try? c.decodeIfPresent(Int.self, forKey: .colorBlendMode)
-        size = try? c.decodeIfPresent(String.self, forKey: .size)
+        size = decodeFlexible(String.self, container: c, key: .size)
         alignment = try? c.decodeIfPresent(String.self, forKey: .alignment)
         solid = try? c.decodeIfPresent(Bool.self, forKey: .solid)
         copybackground = try? c.decodeIfPresent(Bool.self, forKey: .copybackground)
