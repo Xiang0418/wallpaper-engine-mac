@@ -12,6 +12,7 @@ import Combine
 class VideoWallpaperViewModel: ObservableObject {
     var currentWallpaper: WEWallpaper {
         didSet {
+            observeVolume()
             // Remove observer for old item before replacing
             if let oldItem = self.player.currentItem {
                 NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: oldItem)
@@ -39,6 +40,7 @@ class VideoWallpaperViewModel: ObservableObject {
 
     var player = AVPlayer()
     private var cancellables = Set<AnyCancellable>()
+    private var volumeSubscription: AnyCancellable?
 
     init(wallpaper currentWallpaper: WEWallpaper) {
         self.currentWallpaper = currentWallpaper
@@ -55,12 +57,12 @@ class VideoWallpaperViewModel: ObservableObject {
                 self?.playRate = rate
             }
             .store(in: &cancellables)
-        wvm.$playVolume
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] volume in
-                self?.playVolume = volume
-            }
-            .store(in: &cancellables)
+        observeVolume()
+    }
+
+    private func observeVolume() {
+        volumeSubscription = AppDelegate.shared.wallpaperViewModel.volumePublisher(for: currentWallpaper)
+            .sink { [weak self] volume in self?.playVolume = volume }
     }
 
     deinit {

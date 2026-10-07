@@ -33,3 +33,22 @@ Phase-one behavior:
 These automated checks do not establish pixel-perfect presentation, perceptually
 seamless video boundaries, or long-duration memory stability. Those need desktop
 visual/audio checks and a longer profiling session.
+
+## Per-wallpaper volume
+
+```sh
+bash tests/run-wallpaper-volume.sh '/path/to/3799672625'
+```
+
+The fixture argument is optional for volume tests. With it, the suite also checks
+that scene video and MP3 receive the same effective volume. Without it, it checks
+persistence, wallpaper identity/isolation, 0–100% limits, mute/unmute, video player
+rebinding, native menu slider actions and control synchronization. It renders the
+production controls in light/dark appearances to `/tmp/we-volume-light.png` and
+`/tmp/we-volume-dark.png` for visual inspection.
+
+Volumes are saved by standardized wallpaper directory. The same wallpaper on two
+screens shares its saved percentage. Different wallpapers retain independent
+percentages. The menu lists enabled screens with supported scene/video wallpapers;
+web wallpaper volume is not exposed because its playback adapter does not support
+volume control. Global mute silences all players without changing saved levels.

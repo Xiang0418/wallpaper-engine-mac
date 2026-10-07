@@ -63,6 +63,31 @@ extension AppDelegate {
         return menu
     }
 
+    private func refreshWallpaperVolumeItems(in menu: NSMenu) {
+        let tag = 7301
+        for item in menu.items where item.tag == tag { menu.removeItem(item) }
+        guard let muteIndex = menu.items.firstIndex(where: {
+            $0.action == #selector(mute) || $0.action == #selector(unmute)
+        }) else { return }
+        var insertionIndex = muteIndex
+        for screen in NSScreen.screens {
+            let screenId = WallpaperViewModel.screenId(for: screen)
+            let wallpaper = wallpaperViewModel.wallpaper(for: screenId)
+            guard wallpaperViewModel.isScreenEnabled(screenId), WallpaperViewModel.supportsVolume(wallpaper) else { continue }
+            let item = NSMenuItem()
+            item.tag = tag
+            item.view = WallpaperVolumeMenuView(model: wallpaperViewModel, wallpaper: wallpaper,
+                                                screenName: screen.localizedName)
+            menu.insertItem(item, at: insertionIndex)
+            insertionIndex += 1
+        }
+        if insertionIndex > muteIndex {
+            let separator = NSMenuItem.separator()
+            separator.tag = tag
+            menu.insertItem(separator, at: insertionIndex)
+        }
+    }
+
     func setStatusMenu() {
         // Recent Wallpapers Submenu
         let recentWallpapersMenuItem = NSMenuItem(title: String(localized: "Recent Wallpapers"), action: nil, keyEquivalent: "")
@@ -115,6 +140,8 @@ extension AppDelegate {
                   keyEquivalent: "q")
         ]
 
+        refreshWallpaperVolumeItems(in: menu)
+
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.statusItem.menu = menu
 
@@ -133,6 +160,7 @@ extension AppDelegate {
 
 extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
+        refreshWallpaperVolumeItems(in: menu)
         // Update the Recent Wallpapers submenu each time the status bar menu opens
         if let recentItem = menu.items.first(where: { $0.title == String(localized: "Recent Wallpapers") }) {
             recentItem.submenu = buildRecentWallpapersMenu()

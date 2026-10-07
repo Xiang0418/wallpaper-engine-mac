@@ -49,6 +49,6 @@ struct VideoWallpaperView: NSViewRepresentable {
         }
 
         viewModel.playRate = wallpaperViewModel.playRate
-        viewModel.playVolume = wallpaperViewModel.playVolume
+        viewModel.playVolume = wallpaperViewModel.effectiveVolume(for: selectedWallpaper)
     }
 }

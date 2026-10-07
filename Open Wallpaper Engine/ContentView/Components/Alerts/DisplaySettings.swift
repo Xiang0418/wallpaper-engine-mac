@@ -86,6 +86,9 @@ struct DisplaySettings: SubviewOfContentView {
                             .controlSize(.small)
                             .disabled(wp.project == .invalid)
                         }
+                        if WallpaperViewModel.supportsVolume(wp) {
+                            WallpaperVolumeControl(wallpaperViewModel: wallpaperViewModel, wallpaper: wp)
+                        }
                     } else {
                         Text("Wallpaper display is disabled on this screen.")
                             .font(.callout)

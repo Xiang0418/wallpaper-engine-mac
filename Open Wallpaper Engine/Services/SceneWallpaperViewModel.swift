@@ -33,6 +33,7 @@ class SceneWallpaperViewModel: ObservableObject {
     private var audioPlayers: [(AVAudioPlayer, Float)] = []
     private var temporaryDirectory: URL?
     private var cancellables = Set<AnyCancellable>()
+    private var volumeSubscription: AnyCancellable?
     private var audioError: String?
     private var sleeping = false
     private var playRate: Float = 0
@@ -41,6 +42,7 @@ class SceneWallpaperViewModel: ObservableObject {
     private weak var errorNode: SKLabelNode?
 
     func stop() {
+        volumeSubscription = nil
         readinessTimer?.invalidate()
         readinessTimer = nil
         videoPlayer?.pause()
@@ -108,10 +110,6 @@ class SceneWallpaperViewModel: ObservableObject {
             self?.playRate = value
             self?.applyPlayback()
         }.store(in: &cancellables)
-        shared.$playVolume.receive(on: DispatchQueue.main).sink { [weak self] value in
-            self?.playVolume = value
-            self?.applyPlayback()
-        }.store(in: &cancellables)
         loadScene(from: wallpaper)
     }
 
@@ -125,6 +123,11 @@ class SceneWallpaperViewModel: ObservableObject {
 
     func loadScene(from wallpaper: WEWallpaper) {
         stop()
+        volumeSubscription = AppDelegate.shared.wallpaperViewModel.volumePublisher(for: wallpaper)
+            .sink { [weak self] volume in
+                self?.playVolume = volume
+                self?.applyPlayback()
+            }
         let dir = wallpaper.wallpaperDirectory
         let sceneFile = wallpaper.project.file  // e.g. "scene.json" or "gifscene.json"
 

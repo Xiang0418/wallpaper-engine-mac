@@ -1,6 +1,98 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "All wallpapers muted" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All wallpapers muted"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有桌布已靜音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有壁纸已静音"
+          }
+        }
+      }
+    },
+    "All wallpapers are muted. Your volume setting is saved." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All wallpapers are muted. Your volume setting is saved."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有桌布目前均為靜音，音量設定仍會儲存。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有壁纸目前均为静音，音量设置仍会保存。"
+          }
+        }
+      }
+    },
+    "Saved for this wallpaper." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved for this wallpaper."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此音量會儲存於這張桌布。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此音量会保存于这张壁纸。"
+          }
+        }
+      }
+    },
+    "Wallpaper Volume" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wallpaper Volume"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "桌布音量"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "壁纸音量"
+          }
+        }
+      }
+    },
     "_approved" : {
       "extractionState" : "manual",
       "localizations" : {

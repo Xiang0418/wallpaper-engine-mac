@@ -12,6 +12,9 @@ struct WEWallpaper {
 final class PlaybackSettings {
     @Published var playRate: Float = 0
     @Published var playVolume: Float = 0
+    func volumePublisher(for wallpaper: WEWallpaper) -> AnyPublisher<Float, Never> {
+        $playVolume.eraseToAnyPublisher()
+    }
 }
 final class AppDelegate {
     static let shared = AppDelegate()
