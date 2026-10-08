@@ -70,6 +70,7 @@
 		DAEE29C62A9CB52100633898 /* WebWallpaperViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAEE29C52A9CB52100633898 /* WebWallpaperViewModel.swift */; };
 		DD1000000000000000000001 /* WallpaperVolumeControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000002 /* WallpaperVolumeControl.swift */; };
 		DD2000000000000000000001 /* WallpaperPlaybackSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD2000000000000000000002 /* WallpaperPlaybackSession.swift */; };
+		DD0900000000000000000001 /* SteamDownloadProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0900000000000000000002 /* SteamDownloadProcess.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -149,6 +150,7 @@
 		DAEE29C52A9CB52100633898 /* WebWallpaperViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebWallpaperViewModel.swift; sourceTree = "<group>"; };
 		DD1000000000000000000002 /* WallpaperVolumeControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperVolumeControl.swift; sourceTree = "<group>"; };
 		DD2000000000000000000002 /* WallpaperPlaybackSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperPlaybackSession.swift; sourceTree = "<group>"; };
+		DD0900000000000000000002 /* SteamDownloadProcess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamDownloadProcess.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -243,6 +245,7 @@
 				CC0000000000000000000002 /* WallpaperDirectory.swift */,
 				CC0000000000000000000004 /* ZipImporter.swift */,
 				CC0000000000000000000006 /* SteamCmdService.swift */,
+				DD0900000000000000000002 /* SteamDownloadProcess.swift */,
 				CC0000000000000000000008 /* WorkshopAPIService.swift */,
 				CC000000000000000000000A /* WorkshopViewModel.swift */,
 			);
@@ -501,6 +504,7 @@
 				CC0000000000000000000001 /* WallpaperDirectory.swift in Sources */,
 				CC0000000000000000000003 /* ZipImporter.swift in Sources */,
 				CC0000000000000000000005 /* SteamCmdService.swift in Sources */,
+				DD0900000000000000000001 /* SteamDownloadProcess.swift in Sources */,
 				CC0000000000000000000007 /* WorkshopAPIService.swift in Sources */,
 				CC0000000000000000000009 /* WorkshopViewModel.swift in Sources */,
 				CC000000000000000000000B /* WorkshopView.swift in Sources */,

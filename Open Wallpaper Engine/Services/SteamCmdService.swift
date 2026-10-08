@@ -232,52 +232,21 @@ class SteamCmdService: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
 
-            let process = Process()
-            let outputPipe = Pipe()
-            process.executableURL = URL(fileURLWithPath: cmdPath)
-            process.currentDirectoryURL = URL(fileURLWithPath: cmdPath).deletingLastPathComponent()
-            process.arguments = [
-                "+login", self.steamUsername,
-                "+workshop_download_item", "431960", workshopId, "validate",
-                "+quit"
-            ]
-            process.standardOutput = outputPipe
-            process.standardError = outputPipe
-
-            // Read output in real-time for progress updates
-            var fullOutput = ""
-            let handle = outputPipe.fileHandleForReading
-            handle.readabilityHandler = { [weak self] fileHandle in
-                let data = fileHandle.availableData
-                guard !data.isEmpty, let line = String(data: data, encoding: .utf8) else { return }
-                fullOutput += line
-
-                let status = self?.parseProgress(line) ?? nil
-                if let status = status {
-                    DispatchQueue.main.async {
-                        self?.downloadProgress[workshopId] = .downloading(status: status)
-                    }
-                }
-            }
-
+            let result: SteamDownloadProcess.Result
             do {
-                try process.run()
-                process.waitUntilExit()
+                result = try SteamDownloadProcess.run(executable: URL(fileURLWithPath: cmdPath),
+                    arguments: ["+login", self.steamUsername, "+workshop_download_item", "431960", workshopId, "validate", "+quit"],
+                    workshopID: workshopId) { [weak self] output in
+                        guard let status = self?.parseProgress(output) else { return }
+                        DispatchQueue.main.async { self?.downloadProgress[workshopId] = .downloading(status: status) }
+                    }
             } catch {
-                handle.readabilityHandler = nil
                 DispatchQueue.main.async {
                     self.downloadProgress[workshopId] = .failed("steamcmd failed to run: \(error.localizedDescription)")
                 }
                 return
             }
-
-            handle.readabilityHandler = nil
-            // Read any remaining data
-            let remaining = handle.readDataToEndOfFile()
-            if let str = String(data: remaining, encoding: .utf8) { fullOutput += str }
-
-            let exitCode = process.terminationStatus
-            print("steamcmd download [\(workshopId)] exit=\(exitCode)\n\(fullOutput)")
+            let fullOutput = result.output
 
             // Find downloaded content
             let steamAppsDir = self.findSteamAppsDir(cmdPath: cmdPath)
@@ -285,6 +254,13 @@ class SteamCmdService: ObservableObject {
                 .appending(path: "workshop/content/431960/\(workshopId)")
 
             DispatchQueue.main.async {
+                guard result.succeeded else {
+                    let detail = fullOutput.components(separatedBy: "\n").last { $0.contains("ERROR") || $0.contains("FAILED") }
+                    self.downloadProgress[workshopId] = .failed(result.timedOut
+                        ? "Steam download stopped after 180 seconds without output."
+                        : detail ?? "Steam download failed (exit \(result.exitCode.map(String.init) ?? "unknown")).")
+                    return
+                }
                 self.downloadProgress[workshopId] = .downloading(status: "Copying to library...")
 
                 if let sourceDir = sourcePath {
@@ -309,7 +285,7 @@ class SteamCmdService: ObservableObject {
                         .first(where: { $0.contains("ERROR") || $0.contains("FAILED") })
                         ?? "Unknown error"
                     self.downloadProgress[workshopId] = .failed(errorLine)
-                } else if exitCode != 0 {
+                } else if let exitCode = result.exitCode, exitCode != 0 {
                     self.downloadProgress[workshopId] = .failed("Exit code \(exitCode)")
                 } else {
                     self.downloadProgress[workshopId] = .failed("Files not found at expected path")
