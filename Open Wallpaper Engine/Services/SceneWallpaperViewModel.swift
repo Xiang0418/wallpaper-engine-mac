@@ -50,6 +50,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     private var temporaryDirectory: URL?
     private var cancellables = Set<AnyCancellable>()
     private var volumeSubscription: AnyCancellable?
+    private var propertySubscription: AnyCancellable?
     private var audioError: String?
     private var sleeping = false
     private var playRate: Float = 0
@@ -63,6 +64,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         rawObjects.removeAll()
         WallpaperPlaybackSessions.shared.unregister(self, screenId: screenId)
         volumeSubscription = nil
+        propertySubscription = nil
         readinessTimer?.invalidate()
         readinessTimer = nil
         restartVideo = nil
@@ -304,20 +306,23 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         // editor navigation state, not a runtime offset for these 2D scene exports.
         let nodes = Dictionary(uniqueKeysWithValues: indices.map { ($0.key, containers[$0.value]) })
         let contentNodes = nodes.compactMapValues { $0.children.first { $0 is SKSpriteNode || $0 is SKLabelNode || $0 is SKVideoNode } }
-        var properties: [String:Any] = [:]
-        if let data = try? Data(contentsOf:wallpaperDir.appendingPathComponent("project.json")),
-           let project = try? JSONSerialization.jsonObject(with:data) as? [String:Any],
-           let general = project["general"] as? [String:Any], let definitions = general["properties"] as? [String:[String:Any]] {
-            for (key,definition) in definitions { properties[key] = definition["value"] }
-        }
+        let properties = ScenePropertyStore.shared.values(at: wallpaperDir)
         skScene.install(objects:rawObjects,nodes:nodes,contentNodes:contentNodes,properties:properties,
                         storageKey:wallpaperDir.standardizedFileURL.path) { [weak self] path in
             self?.assetData(path,wallpaperDir:wallpaperDir)
         }
+        propertySubscription = NotificationCenter.default.publisher(for: ScenePropertyStore.didChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak skScene] notification in
+                guard notification.object as? String == wallpaperDir.standardizedFileURL.path,
+                      let changes = notification.userInfo as? [String: Any] else { return }
+                skScene?.scriptRuntime?.applyUserProperties(changes)
+            }
         skScene.effectsDidUpdate = { id, effects in
             guard let sprite = contentNodes[id] as? SKSpriteNode else { return }
             Self.updateEffectUniforms(sprite,effects:effects)
         }
+        skScene.scriptRuntime?.applyUserProperties(properties)
         skScene.spectrumProvider = { [weak self] in
             guard let self else { return Array(repeating:0,count:64) }
             var mixed = [Float](repeating:0,count:64)
@@ -1012,7 +1017,7 @@ extension SceneWallpaperViewModel {
             case "custom_user_texture":
                 if let textures = pass?.textures, textures.count > 1, let name = textures[1],
                    let image = loadTexture(named: name, materialDir: "materials/", wallpaperDir: wallpaperDir) {
-                    let uniformName = "custom\(step)"
+                    let uniformName = "custom\(effectIndex)"
                     uniforms.append(SKUniform(name: uniformName, texture: SKTexture(image: image)))
                     body = "vec4 c = texture2D(\(uniformName), uv); if (c.a > 0.0) c.rgb /= c.a; c.rgb *= \(n("multiply", 1)); return c;"
                 } else { warn("Missing custom texture: " + effect.file); continue }

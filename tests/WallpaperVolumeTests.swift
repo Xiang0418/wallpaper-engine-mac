@@ -165,6 +165,16 @@ extension URL {
             func music(_ model: SceneWallpaperViewModel) -> AVAudioPlayer {
                 (Mirror(reflecting: model).children.first { $0.label == "audioPlayers" }!.value as! [(AVAudioPlayer, Float)])[0].0
             }
+            NotificationCenter.default.post(name: ScenePropertyStore.didChange,
+                object: wallpaper.wallpaperDirectory.standardizedFileURL.path, userInfo: ["appdockenabled": true])
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+            check(first.skScene?.childNode(withName: "//layer:146")?.isHidden == false && second.skScene?.childNode(withName: "//layer:146")?.isHidden == false,
+                  "One property update changes both live display scenes")
+            NotificationCenter.default.post(name: ScenePropertyStore.didChange,
+                object: "/different-wallpaper", userInfo: ["appdockenabled": false])
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+            check(first.skScene?.childNode(withName: "//layer:146")?.isHidden == false,
+                  "Other wallpapers cannot change this scene's settings")
             let firstMusic = music(first)
             let secondMusic = music(second)
             check([firstMusic, secondMusic].filter { $0.volume > 0 }.count == 1, "Same wallpaper on two displays has one audible music player")

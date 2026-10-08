@@ -74,6 +74,12 @@ final class AppDelegate {
         check(player.rate == 0 && !audio[0].0.isPlaying, "Sleep pauses both players")
         model.systemDidWake(Notification(name: NSWorkspace.screensDidWakeNotification))
         check(player.rate == 1 && audio[0].0.isPlaying, "Wake restores requested playback")
+        if let runtime = (model.skScene as? InteractiveWallpaperScene)?.scriptRuntime {
+            NotificationCenter.default.post(name: ScenePropertyStore.didChange,
+                object: fixture.standardizedFileURL.path, userInfo: ["appdockenabled": true])
+            spin(0.1)
+            check(runtime.diagnostics.isEmpty, "Live persisted-property notification reaches scene runtime")
+        }
         let musicTime = audio[0].0.currentTime
         player.seek(to: CMTime(seconds: max(0, asset.duration.seconds - 0.3), preferredTimescale: 600))
         spin(1.5)

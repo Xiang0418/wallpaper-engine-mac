@@ -184,14 +184,8 @@ struct WallpaperPreview: SubviewOfContentView {
                         }
                     }
                     VStack(spacing: 16) {
-                        ColorPicker(selection: .constant(.red), supportsOpacity: true) {
-                            HStack {
-                                Label("Scheme Color", systemImage: "paintpalette.fill")
-                                Spacer()
-                            }
-                        }
-                        .opacity(0.5)
-                        .disabled(true)
+                        ScenePropertiesEditor(directory: wallpaperViewModel.currentWallpaper.wallpaperDirectory)
+                            .id(wallpaperViewModel.currentWallpaper.wallpaperDirectory)
                         if WallpaperViewModel.supportsVolume(wallpaperViewModel.currentWallpaper) {
                             WallpaperVolumeControl(wallpaperViewModel: wallpaperViewModel,
                                                    wallpaper: wallpaperViewModel.currentWallpaper)
@@ -373,5 +367,107 @@ extension URL {
                  (try $1.resourceValues(forKeys: [.totalFileAllocatedSizeKey])
                     .totalFileAllocatedSize ?? 0) + $0
         }
+    }
+}
+
+
+/// Keep workshop ordering and conditional groups, with native keyboard-accessible controls.
+struct ScenePropertiesEditor: View {
+    let directory: URL
+    @State private var definitions: [String: [String: Any]] = [:]
+    @State private var values: [String: Any] = [:]
+    @State private var filter = ""
+    @State private var fileError: String?
+    private let store = ScenePropertyStore.shared
+
+    private var names: [String] {
+        definitions.keys.sorted {
+            let a = definitions[$0]?["order"] as? Int ?? definitions[$0]?["index"] as? Int ?? 0
+            let b = definitions[$1]?["order"] as? Int ?? definitions[$1]?["index"] as? Int ?? 0
+            return a == b ? $0 < $1 : a < b
+        }.filter { name in
+            let d = definitions[name]!
+            return ScenePropertyStore.isVisible(d, values: values) && (filter.isEmpty || label(d).localizedCaseInsensitiveContains(filter) || name.localizedCaseInsensitiveContains(filter))
+        }
+    }
+    private func label(_ definition: [String: Any]) -> String {
+        if definition["text"] as? String == "ui_browse_properties_scheme_color" { return "Scheme Color" }
+        return (definition["text"] as? String ?? "").replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&nbsp;", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    private func binding<T>(_ name: String, fallback: T) -> Binding<T> {
+        Binding(get: { values[name] as? T ?? fallback }, set: { store.set($0, name: name, at: directory); values = store.values(at: directory) })
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if !definitions.isEmpty {
+                TextField("Search wallpaper settings", text: $filter)
+                ForEach(names, id: \.self) { name in
+                    property(name, definitions[name]!)
+                }
+                if let fileError { Text(fileError).font(.caption).foregroundStyle(.red) }
+                Button("Reset wallpaper settings") { store.reset(at: directory); values = store.values(at: directory) }
+                Text("Changes are saved automatically for this wallpaper on all displays.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .onAppear { definitions = store.definitions(at: directory); values = store.values(at: directory) }
+        .onReceive(NotificationCenter.default.publisher(for: ScenePropertyStore.didChange)) { note in
+            if note.object as? String == directory.standardizedFileURL.path { values = store.values(at: directory) }
+        }
+    }
+    @ViewBuilder private func property(_ name: String, _ d: [String: Any]) -> some View {
+        let title = label(d)
+        switch d["type"] as? String {
+        case "bool": Toggle(title, isOn: binding(name, fallback: false))
+        case "slider":
+            let low = (d["min"] as? Double) ?? 0
+            let high = max(low + 0.000001, (d["max"] as? Double) ?? 1)
+            VStack(alignment: .leading) {
+                HStack { Text(title); Spacer(); Text(String(format: "%.*f", min(6, max(0, d["precision"] as? Int ?? 2)), values[name] as? Double ?? low)).monospacedDigit() }
+                Slider(value: binding(name, fallback: low), in: low...high, step: max(0.000001, d["step"] as? Double ?? (d["fraction"] as? Bool == true ? 0.01 : 1)))
+                    .accessibilityLabel(title)
+            }
+        case "color":
+            ColorPicker(title, selection: Binding(get: {
+                let rgb = (values[name] as? String ?? "1 1 1").split(separator: " ").compactMap { Double($0) }
+                return rgb.count == 3 ? Color(red: rgb[0], green: rgb[1], blue: rgb[2]) : .white
+            }, set: { color in
+                guard let c = NSColor(color).usingColorSpace(.deviceRGB) else { return }
+                store.set("\(c.redComponent) \(c.greenComponent) \(c.blueComponent)", name: name, at: directory)
+                values = store.values(at: directory)
+            }), supportsOpacity: false)
+        case "scenetexture", "file", "directory", "usershortcut":
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                TextField("Path or web link", text: binding(name, fallback: ""))
+                    .accessibilityLabel(title)
+                Button("Choose…") { chooseFile(name, type: d["type"] as? String ?? "file") }
+            }
+        case "combo":
+            let options = d["options"] as? [[String: Any]] ?? []
+            Picker(title, selection: Binding(get: { String(describing: values[name] ?? "") }, set: { selected in
+                if let option = options.first(where: { String(describing: $0["value"] ?? "") == selected }), let value = option["value"] { store.set(value, name: name, at: directory); values = store.values(at: directory) }
+            })) {
+                ForEach(options.indices, id: \.self) { index in
+                    Text(options[index]["label"] as? String ?? "").tag(String(describing: options[index]["value"] ?? ""))
+                }
+            }
+        case "text" where d["value"] == nil: Text(title).font(.caption).foregroundStyle(.secondary)
+        case "text", "textinput":
+            VStack(alignment: .leading) { Text(title); TextField(title, text: binding(name, fallback: "")) }
+        default: Text(title).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    private func chooseFile(_ name: String, type: String) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = type == "directory" || type == "usershortcut"
+        panel.canChooseFiles = type != "directory"
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if type == "scenetexture", NSImage(contentsOf: url) == nil { fileError = "Choose a supported image file."; return }
+        if type == "usershortcut", SceneScriptRuntime.shortcutURL(url.path) == nil { fileError = "Choose a macOS application or document."; return }
+        fileError = nil
+        store.set(url.path, name: name, at: directory)
+        values = store.values(at: directory)
     }
 }

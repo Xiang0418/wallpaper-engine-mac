@@ -221,3 +221,29 @@ after three attempts; sleep/pause suspends retries, wake renews the budget, and
 while asleep must automatically recover after wake and dismiss the preview.
 These checks simulate playback failure and workspace notifications; actual
 hardware decoder failure across physical lid-close/wake still requires device QA.
+
+## Phase four: wallpaper settings and daily use
+
+```sh
+bash tests/run-scene-runtime-tests.sh
+bash tests/run-scene-properties.sh '/path/to/3799672625'
+bash tests/run-scene-playback.sh '/path/to/3799672625'
+bash tests/run-wallpaper-volume.sh '/path/to/3799672625'
+```
+
+The property editor reads every definition from `general.properties`, preserves
+workshop order, strips label markup, and supports booleans, sliders, colors, text,
+combo boxes, images and macOS shortcuts. Static `text` entries without a value
+remain explanatory labels. This fixture has 121 definitions; subordinate dock
+settings appear after enabling their controlling switches. Changes save per
+wallpaper directory, propagate to matching live scenes, and restore before script
+initialization. Reset restores project defaults without modifying the package.
+Image overrides update the custom-texture shader; clearing one restores its
+original texture. Shortcuts use macOS applications/documents or HTTP(S) links.
+
+Tests cover typed persistence, clamp/step validation, non-executable condition
+comparisons (`==`, `!=`, `<`, `>`, `<=`, `>=`, `&&`, `||`), rejected invalid
+conditions, all fixture conditions, all 121 definitions surviving a metadata
+roundtrip, image replacement/reset, settings notifications, and light/dark editor
+renders (`/tmp/we-properties-light.png`, `/tmp/we-properties-dark.png`). Conditions
+outside this grammar are hidden, not evaluated as JavaScript.

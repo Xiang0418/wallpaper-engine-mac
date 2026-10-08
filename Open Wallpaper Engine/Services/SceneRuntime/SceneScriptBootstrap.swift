@@ -70,3 +70,84 @@ enum SceneScriptBootstrap {
     function shutdown(){for(const s of scripts)invoke(s,'destroy');scripts.length=0;layers.length=0;bindings.length=0;audioBuffers.length=0;}
     """#
 }
+
+/// Property-list backed overrides never modify the workshop's project.json.
+/// The notification carries the directory identity so every matching screen updates.
+final class ScenePropertyStore {
+    static let shared = ScenePropertyStore()
+    static let didChange = Notification.Name("ScenePropertiesDidChange")
+    private let defaults: UserDefaults
+    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+    private func key(_ directory: URL) -> String { "SceneProperties." + directory.standardizedFileURL.path }
+
+    func definitions(at directory: URL) -> [String: [String: Any]] {
+        guard let data = try? Data(contentsOf: directory.appendingPathComponent("project.json")),
+              let project = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let general = project["general"] as? [String: Any] else { return [:] }
+        return general["properties"] as? [String: [String: Any]] ?? [:]
+    }
+    func values(at directory: URL) -> [String: Any] {
+        let definitions = definitions(at: directory)
+        var values = definitions.compactMapValues { $0["value"] }
+        for (name, value) in defaults.dictionary(forKey: key(directory)) ?? [:] {
+            if let definition = definitions[name], let valid = validated(value, definition: definition) { values[name] = valid }
+        }
+        return values
+    }
+    func set(_ value: Any, name: String, at directory: URL) {
+        guard let definition = definitions(at: directory)[name], let value = validated(value, definition: definition) else { return }
+        var saved = defaults.dictionary(forKey: key(directory)) ?? [:]
+        saved[name] = value
+        defaults.set(saved, forKey: key(directory))
+        notify(directory, changes: [name: value])
+    }
+    func reset(at directory: URL) {
+        defaults.removeObject(forKey: key(directory))
+        notify(directory, changes: values(at: directory))
+    }
+    private func notify(_ directory: URL, changes: [String: Any]) {
+        NotificationCenter.default.post(name: Self.didChange, object: directory.standardizedFileURL.path, userInfo: changes)
+    }
+    private func validated(_ value: Any, definition: [String: Any]) -> Any? {
+        switch definition["type"] as? String {
+        case "bool": return (value as? NSNumber)?.boolValue
+        case "slider":
+            guard let number = value as? NSNumber, number.doubleValue.isFinite else { return nil }
+            let low = (definition["min"] as? NSNumber)?.doubleValue ?? 0
+            let high = max(low, (definition["max"] as? NSNumber)?.doubleValue ?? 1)
+            let step = (definition["step"] as? NSNumber)?.doubleValue ?? ((definition["fraction"] as? Bool == true) ? 0.01 : 1)
+            let clamped = min(high, max(low, number.doubleValue))
+            return step > 0 ? min(high, max(low, low + ((clamped-low)/step).rounded()*step)) : clamped
+        case "color":
+            guard let text = value as? String else { return nil }
+            let rgb = text.split(separator: " ").compactMap { Double($0) }
+            guard rgb.count == 3, rgb.allSatisfy({ $0.isFinite && (0...1).contains($0) }) else { return nil }
+            return text
+        case "combo":
+            let options = definition["options"] as? [[String: Any]] ?? []
+            return options.contains { String(describing: $0["value"] ?? "") == String(describing: value) } ? value : nil
+        default: return value as? String
+        }
+    }
+
+    /// Accept only property comparisons and boolean operators, never executable JS.
+    static func isVisible(_ definition: [String: Any], values: [String: Any]) -> Bool {
+        guard let condition = definition["condition"] as? String, !condition.isEmpty else { return true }
+        return condition.components(separatedBy: "||").contains { alternative in
+            alternative.components(separatedBy: "&&").allSatisfy { term in
+                let pattern = #"^\s*([A-Za-z_][A-Za-z_0-9]*)\.value\s*(==|!=|>=|<=|>|<)\s*(true|false|-?[0-9]+(?:\.[0-9]+)?|'[^']*'|"[^"]*")\s*$"#
+                guard let regex = try? NSRegularExpression(pattern: pattern),
+                      let match = regex.firstMatch(in: term, range: NSRange(term.startIndex..., in: term)) else { return false }
+                func group(_ i: Int) -> String { String(term[Range(match.range(at: i), in: term)!]) }
+                guard let actual = values[group(1)] else { return false }
+                let op = group(2), literal = group(3)
+                let expected: String = literal == "true" ? "1" : literal == "false" ? "0" : literal.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+                let text = (actual as? NSNumber)?.stringValue ?? String(describing: actual)
+                if op == "==" { return text == expected }
+                if op == "!=" { return text != expected }
+                guard let a = Double(text), let b = Double(expected) else { return false }
+                switch op { case ">": return a > b; case "<": return a < b; case ">=": return a >= b; default: return a <= b }
+            }
+        }
+    }
+}
