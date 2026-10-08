@@ -12,9 +12,19 @@ import Combine
 class VideoWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     private let screenId: String
     private var audioEnabled = true
+    private var sleepReasons = Set<String>()
+    private var policyPaused = false
+    private var policyMuted = false
+    private var effectiveRate: Float { sleepReasons.isEmpty && !policyPaused ? playRate : 0 }
+    func setPlaybackPolicy(paused: Bool, muted: Bool) {
+        policyPaused = paused; policyMuted = muted
+        player.rate = effectiveRate
+        player.volume = audioEnabled && !policyMuted ? playVolume : 0
+    }
+
     func setAudioEnabled(_ enabled: Bool) {
         audioEnabled = enabled
-        player.volume = enabled ? playVolume : 0
+        player.volume = enabled && !policyMuted ? playVolume : 0
     }
     func stop() {
         WallpaperPlaybackSessions.shared.unregister(self, screenId: screenId)
@@ -40,21 +50,21 @@ class VideoWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
             self.player.replaceCurrentItem(with: newItem)
             NotificationCenter.default.addObserver(self, selector: #selector(playerDidFinishPlaying(_:)), name: .AVPlayerItemDidPlayToEndTime, object: newItem)
             // Force-apply rate and volume — replaceCurrentItem resets player to paused
-            self.player.rate = self.playRate
+            self.player.rate = effectiveRate
             registerPlayback()
-            self.player.volume = audioEnabled ? self.playVolume : 0
+            self.player.volume = audioEnabled && !policyMuted ? self.playVolume : 0
         }
     }
 
     var playRate: Float = 0 {
         didSet {
-            self.player.rate = playRate
+            self.player.rate = effectiveRate
         }
     }
 
     var playVolume: Float = 0 {
         didSet {
-            self.player.volume = audioEnabled ? playVolume : 0
+            self.player.volume = audioEnabled && !policyMuted ? playVolume : 0
         }
     }
 
@@ -69,6 +79,9 @@ class VideoWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         NotificationCenter.default.addObserver(self, selector: #selector(playerDidFinishPlaying(_:)), name: .AVPlayerItemDidPlayToEndTime, object: self.player.currentItem)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(systemWillSleep(_:)), name: NSWorkspace.screensDidSleepNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(systemDidWake(_:)), name: NSWorkspace.didWakeNotification, object: nil)
+
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(systemWillSleep(_:)), name: NSWorkspace.willSleepNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(systemDidWake(_:)), name: NSWorkspace.screensDidWakeNotification, object: nil)
 
         // Directly observe playRate/playVolume changes from the shared WallpaperViewModel
         let wvm = AppDelegate.shared.wallpaperViewModel
@@ -96,19 +109,21 @@ class VideoWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     @objc private func playerDidFinishPlaying(_ notification: Notification) {
         // Replay video
         self.player.seek(to: CMTime.zero)
-        self.player.rate = self.playRate
+        self.player.rate = effectiveRate
     }
 
     @objc private func playerDidStopPlaying(_ notification: Notification) {
         // Resume playback
-        self.player.rate = self.playRate
+        self.player.rate = effectiveRate
     }
 
     @objc func systemWillSleep(_ notification: Notification) {
+        sleepReasons.insert(notification.name == NSWorkspace.willSleepNotification ? "system" : "display")
         self.player.rate = 0
     }
 
     @objc func systemDidWake(_ notification: Notification) {
-        self.player.rate = self.playRate
+        sleepReasons.remove(notification.name == NSWorkspace.didWakeNotification ? "system" : "display")
+        self.player.rate = effectiveRate
     }
 }

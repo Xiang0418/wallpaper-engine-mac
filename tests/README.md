@@ -247,3 +247,23 @@ conditions, all fixture conditions, all 121 definitions surviving a metadata
 roundtrip, image replacement/reset, settings notifications, and light/dark editor
 renders (`/tmp/we-properties-light.png`, `/tmp/we-properties-dark.png`). Conditions
 outside this grammar are hidden, not evaluated as JavaScript.
+
+Application focus policies now gate playback without changing the user's manual
+pause or mute. Video, music and scripts pause together. System and display sleep
+are tracked independently, so one wake event cannot override the other sleep
+reason. Newly registered sessions inherit the current focus policy. Settings
+changes and audio ownership changes cannot bypass policy mute.
+
+Display assignments use persistent display UUIDs, with migration of connected
+screens' legacy numeric IDs. Disabled displays remain disabled on reconnect;
+newly discovered displays are enabled. Existing all-Spaces windows retain their
+players and script state across Spaces changes. Original desktop images are
+saved/restored per display; generated video placeholders only update matching
+assignments. A disconnected legacy display can only migrate when its old numeric
+ID can still be matched by macOS.
+
+Physical acceptance still required on the target machine: reconnect external
+monitors (including changed arrangement/scaling), drag across displays, switch
+Spaces/full-screen apps, close/open the lid, and run for several hours while
+monitoring memory. Automated tests simulate notifications and session replacement;
+they do not establish physical multi-display/Spaces or overnight stability.
