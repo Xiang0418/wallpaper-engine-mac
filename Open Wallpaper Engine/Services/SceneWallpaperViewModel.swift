@@ -35,6 +35,8 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
 
     private var fontCache: [String: NSFont] = [:]
     private var textureCache: [String: NSImage] = [:]
+    private var animationCache: [String: TEXAnimation] = [:]
+    private var pendingAnimations: [(SKSpriteNode, [SKTexture], [Double])] = []
     private(set) var renderingWarnings: [String] = []
     private var pkgParser: PKGParser?
     private var rawObjects: [[String: Any]] = []
@@ -89,6 +91,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         skScene?.removeAllChildren()
         fontCache.removeAll()
         textureCache.removeAll()
+        animationCache.removeAll(); pendingAnimations.removeAll()
         renderingWarnings.removeAll()
         pkgParser = nil
         if let directory = temporaryDirectory {
@@ -328,6 +331,10 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
                       let changes = notification.userInfo as? [String: Any] else { return }
                 skScene?.scriptRuntime?.applyUserProperties(changes)
             }
+        for (node, textures, durations) in pendingAnimations {
+            skScene.bindTextureAnimation(node: node, textures: textures, durations: durations)
+        }
+        pendingAnimations.removeAll()
         skScene.effectsDidUpdate = { id, effects in
             guard let sprite = contentNodes[id] as? SKSpriteNode else { return }
             Self.updateEffectUniforms(sprite,effects:effects)
@@ -548,13 +555,32 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
             warn("Missing image material/texture: " + imagePath)
             return nil
         }
-        let texture = SKTexture(image: image)
+        var texture = SKTexture(image: image)
+        let animation = animationCache[materialPath + "|" + textureName]
+        var frames: [SKTexture] = []
+        if let animation {
+            let filtering: SKTextureFilteringMode = animation.nearestFiltering ? .nearest : .linear
+            let atlases = animation.images.map { image -> SKTexture in
+                let atlas = SKTexture(image: image); atlas.filteringMode = filtering; return atlas
+            }
+            frames = animation.frames.map { frame in
+                let texture = SKTexture(rect: frame.rect, in: atlases[frame.imageIndex])
+                texture.filteringMode = filtering
+                return texture
+            }
+            if let first = frames.first { texture = first }
+        }
         let node = SKSpriteNode(texture: texture)
+        if let animation, !frames.isEmpty {
+            pendingAnimations.append((node, frames, animation.frames.map(\.duration)))
+        }
 
         // Size from object, or use pixel dimensions (not point size, which is halved on Retina)
         if let sizeStr = obj.size {
             let (w, h) = sizeStr.parseVector2()
             node.size = CGSize(width: w, height: h)
+        } else if let firstFrame = animation?.frames.first {
+            node.size = firstFrame.size
         } else {
             let pixelW = image.representations.first?.pixelsWide ?? Int(image.size.width)
             let pixelH = image.representations.first?.pixelsHigh ?? Int(image.size.height)
@@ -839,6 +865,11 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
             if let parser = pkgParser, let texData = parser.extractFile(named: texPath) {
                 Self.log("  TEX from PKG '\(texPath)' size=\(texData.count)")
                 let texParser = TEXParser(data: Data(texData))  // Copy to reset indices
+                if let animation = texParser.extractAnimation() {
+                    animationCache[cacheKey] = animation
+                    textureCache[cacheKey] = animation.images[0]
+                    return animation.images[0]
+                }
                 if let image = texParser.extractImage() {
                     textureCache[cacheKey] = image
                     return image
@@ -850,6 +881,11 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
             let texURL = wallpaperDir.appending(path: texPath)
             if let texData = try? Data(contentsOf: texURL) {
                 let texParser = TEXParser(data: texData)
+                if let animation = texParser.extractAnimation() {
+                    animationCache[cacheKey] = animation
+                    textureCache[cacheKey] = animation.images[0]
+                    return animation.images[0]
+                }
                 if let image = texParser.extractImage() {
                     textureCache[cacheKey] = image
                     return image
