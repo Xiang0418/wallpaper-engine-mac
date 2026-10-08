@@ -15,6 +15,8 @@ final class InteractiveWallpaperScene: SKScene {
     var effectsDidUpdate: ((Int, [[String: Any]]) -> Void)?
     private var stopped = false
     private var textureAnimations: [(SKSpriteNode, SceneTextureAnimation)] = []
+    private var scrollSprites: [SKSpriteNode] = []
+    private var effectTime: Double = 0
 
     func bindTextureAnimation(node: SKSpriteNode, textures: [SKTexture], durations: [Double]) {
         guard textures.count == durations.count, !textures.isEmpty else { return }
@@ -48,8 +50,10 @@ final class InteractiveWallpaperScene: SKScene {
                 trail.zPosition = CGFloat(index+1)
                 addChild(trail); trails.append((node, trail))
             }
-            if let sprite = contentNodes[id] as? SKSpriteNode,
-               sprite.shader?.uniformNamed("u_audioSpectrum") != nil { spectrumSprites.append(sprite) }
+            if let sprite = contentNodes[id] as? SKSpriteNode {
+                if sprite.shader?.uniformNamed("u_audioSpectrum") != nil { spectrumSprites.append(sprite) }
+                if sprite.shader?.uniformNamed("u_scrollTime") != nil { scrollSprites.append(sprite) }
+            }
 
         }
         // Keep the authored transform available to scripts. Viewport adaptation
@@ -83,6 +87,8 @@ final class InteractiveWallpaperScene: SKScene {
         let dt = lastTime.map { min(0.1, max(0, currentTime-$0)) } ?? 0
         lastTime = currentTime
         for (node, animation) in textureAnimations { animation.advance(dt); node.texture = animation.texture }
+        effectTime += dt
+        for sprite in scrollSprites { sprite.shader?.uniformNamed("u_scrollTime")?.floatValue = Float(effectTime) }
         var point: CGPoint?
         if let view, let window = view.window {
             let windowPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
@@ -149,7 +155,7 @@ final class InteractiveWallpaperScene: SKScene {
         cursorHistory.reset()
         scriptRuntime?.stop(); scriptRuntime = nil
         spectrumProvider = nil
-        textureAnimations.removeAll()
+        textureAnimations.removeAll(); scrollSprites.removeAll()
         trails.removeAll(); spectrumSprites.removeAll(); audioOverlays.removeAll(); removeAllActions()
     }
 

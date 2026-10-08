@@ -1031,6 +1031,10 @@ extension SceneWallpaperViewModel {
                     } else { warn("Missing opacity mask: " + name) }
                 }
                 body = "vec4 c = \(previous)(uv); c.a *= \(n("alpha", 1)) * \(mask); return c;"
+            case "scroll":
+                let sx = n("speedx", 0), sy = n("speedy", 0), repeats = v("repeat", "1 1", 2)
+                if !uniforms.contains(where: { $0.name == "u_scrollTime" }) { uniforms.append(SKUniform(name: "u_scrollTime", float: 0)) }
+                body = "vec2 scrollSpeed = vec2(sign(\(sx)) * \(sx) * \(sx), sign(\(sy)) * \(sy) * \(sy)); vec2 scrollUV = fract(uv * \(repeats) + scrollSpeed * u_scrollTime); vec4 scrolled; { vec2 uv = scrollUV; " + source + " scrolled = result; } result = scrolled;"
             case "spin":
                 let aspect = Double(node.size.width / max(1, node.size.height))
                 body = """
@@ -1112,7 +1116,7 @@ extension SceneWallpaperViewModel {
                 body = body.replacingOccurrences(
                     of: "return mix(\(previous)(uv), \(previous)(fract(p + center)), mask);",
                     with: "vec4 original = result; vec4 spun; { vec2 uv = fract(p + center); " + source + " spun = result; } result = mix(original, spun, mask);")
-            } else {
+            } else if key != "scroll" {
                 body = body.replacingOccurrences(of: "\(previous)(uv)", with: "result")
                     .replacingOccurrences(of: "return ", with: "result = ")
             }

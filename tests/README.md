@@ -284,3 +284,37 @@ error around 74 scene units on a radius-180 circle, while event sampling stays
 below 3 (observed 0.77). It also verifies elapsed-time conservation, backlog
 bounds and stale-input removal. Hardware cursor feel still depends on the actual
 mouse event rate and configured wallpaper FPS.
+
+## Selected release/0.9.0 compatibility features
+
+Selected ideas from `origin/release/0.9.0` (`e069d8d`), including its download
+fixes (`dc1bc90`, `4624375`) and TEXS/Scroll runtime (`4254fd5`), are adapted to
+the current renderer. The release branch's renderer/audio manager is not merged.
+
+```sh
+bash tests/run-steam-download.sh
+bash tests/run-scene-compatibility.sh
+```
+
+- Downloads use a monotonic 180-second **idle** timeout. Success detection handles
+  split output and checks the exact Workshop ID. Graceful termination escalates
+  to killing the launched process after five seconds; no blocking pipe EOF read
+  follows. Output retention is bounded. A success marker is required before
+  importing files, so an old partial folder is not mistaken for success.
+- PKG extraction returns zero-indexed `Data` for all consumers.
+- TEXS0001/0002/0003 support includes multiple atlases/mipmaps, frame rectangles,
+  unequal durations, texture filtering and Retina-independent frame dimensions.
+  The existing RGBA, BC/DXT, channel-mask, encoded-image and MP4 code paths remain.
+  Atlas counts, frame counts, dimensions and decoded memory are bounded; malformed
+  animation metadata falls back to the existing static-image path.
+- Scroll is composed with the existing ordered effects and dynamic user bindings.
+  Speed uses signed-square conversion; UVs repeat via `fract`. Animation and
+  Scroll use the scene's pause-aware update clock, avoiding wake-time jumps.
+
+Download tests use local mock processes (split success, long active download,
+ignored SIGTERM, inherited output pipes, mismatched IDs and false-success exits);
+no live Steam account/network download is performed. Compatibility tests use
+synthetic TEXS containers, reject truncation/nonfinite coordinates, check LZ4 and
+BC3 decoding, and verify actual GPU atlas colors and Scroll+opacity output.
+Run the existing rendering, playback, volume and runtime suites against the local
+3799672625 fixture to check the original wallpaper's behavior.
