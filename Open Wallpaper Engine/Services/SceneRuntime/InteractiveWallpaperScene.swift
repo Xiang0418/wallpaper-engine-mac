@@ -7,6 +7,7 @@ final class InteractiveWallpaperScene: SKScene {
     var scriptRuntime: SceneScriptRuntime?
     var spectrumProvider: (() -> [Float])?
     private var lastTime: TimeInterval?
+    private var cursorHistory = SceneCursorHistory()
     private var trails: [(SKNode, SceneRopeTrail)] = []
     private var previousSpectrum: [Float]?
     private var audioOverlays: [(wrapper: SKNode, root: SKNode)] = []
@@ -15,7 +16,14 @@ final class InteractiveWallpaperScene: SKScene {
     private var stopped = false
 
     override var isPaused: Bool {
-        didSet { lastTime = nil; if isPaused { scriptRuntime?.cancelPointer() } }
+        didSet {
+            guard oldValue != isPaused else { return }
+            lastTime = nil; cursorHistory.reset()
+            if isPaused {
+                scriptRuntime?.cancelPointer()
+                for (_, trail) in trails { trail.disconnectCursor() }
+            }
+        }
     }
 
     func install(objects: [[String: Any]], nodes: [Int: SKNode], contentNodes: [Int: SKNode], properties: [String: Any], storageKey: String,
@@ -56,6 +64,11 @@ final class InteractiveWallpaperScene: SKScene {
         }
     }
 
+    func recordCursor(_ point: CGPoint?, at time: TimeInterval) {
+        guard !stopped, !isPaused else { return }
+        cursorHistory.record(point, at: time)
+    }
+
     override func update(_ currentTime: TimeInterval) {
         guard !stopped else { return }
         let dt = lastTime.map { min(0.1, max(0, currentTime-$0)) } ?? 0
@@ -68,12 +81,16 @@ final class InteractiveWallpaperScene: SKScene {
         }
         scriptRuntime?.update(delta: dt, cursor: point ?? CGPoint(x: -1e6, y: -1e6))
         updateViewportLayout()
+        let samples = cursorHistory.consume(until: ProcessInfo.processInfo.systemUptime, frameDuration: dt, current: point)
         for (node, trail) in trails {
             var hidden = node.isHidden
             var parent = node.parent
             while let current = parent { hidden = hidden || current.isHidden;parent = current.parent }
             trail.isHidden = hidden
-            trail.update(delta: dt, cursor: point, enabled: !hidden)
+            for sample in samples {
+                trail.update(delta: sample.delta, cursor: sample.point, enabled: !hidden, render: false)
+            }
+            trail.update(delta: 0, cursor: point, enabled: !hidden)
         }
         let bins = spectrumProvider?() ?? Array(repeating:0,count:64)
         scriptRuntime?.setSpectrum(left: bins, right: bins)
@@ -119,6 +136,7 @@ final class InteractiveWallpaperScene: SKScene {
     func stop() {
         guard !stopped else { return }
         stopped = true
+        cursorHistory.reset()
         scriptRuntime?.stop(); scriptRuntime = nil
         spectrumProvider = nil
         trails.removeAll(); spectrumSprites.removeAll(); audioOverlays.removeAll(); removeAllActions()
@@ -130,20 +148,38 @@ final class InteractiveWallpaperScene: SKScene {
 
 final class InteractiveWallpaperView: SKView {
     private var monitor: Any?
+    private var localMonitor: Any?
     private var desktopPress = false
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
+        if let localMonitor { NSEvent.removeMonitor(localMonitor); self.localMonitor = nil }
         guard window != nil else { return }
         // Wallpaper windows remain click-through so Finder keeps normal desktop
         // behavior. Observe mouse gestures only when no application covers them.
-        monitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp, .leftMouseDragged]) { [weak self] event in
+        monitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]) { [weak self] event in
+            self?.recordCursorMotion()
             self?.desktopEvent(event)
+        }
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]) { [weak self] event in
+            self?.recordCursorMotion()
+            return event
         }
     }
 
-    deinit { if let monitor { NSEvent.removeMonitor(monitor) } }
+    deinit {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        if let localMonitor { NSEvent.removeMonitor(localMonitor) }
+    }
+
+    private func recordCursorMotion() {
+        guard !isPaused, let scene = scene as? InteractiveWallpaperScene,
+              let window, window.isVisible else { return }
+        let local = convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
+        scene.recordCursor(bounds.contains(local) ? scene.convertPoint(fromView: local) : nil,
+                           at: ProcessInfo.processInfo.systemUptime)
+    }
 
     private func desktopEvent(_ event: NSEvent) {
         guard let scene = scene as? InteractiveWallpaperScene, !isPaused, !scene.isPaused,
@@ -197,4 +233,38 @@ final class InteractiveWallpaperView: SKView {
         guard let scene = scene as? InteractiveWallpaperScene, !isPaused, !scene.isPaused else { return }
         scene.scriptRuntime?.mouseUp(at: event.location(in: scene))
     }
+}
+
+
+/// Preserve motion between render frames. The queue is bounded even when drawing
+/// stalls; old samples are discarded instead of replayed after pause or wake.
+struct SceneCursorHistory {
+    struct Sample { let point: CGPoint?; let time: TimeInterval }
+    struct Step { let point: CGPoint?; let delta: TimeInterval }
+    private var pending: [Sample] = []
+    private var lastFrame: TimeInterval?
+    var count: Int { pending.count }
+
+    mutating func record(_ point: CGPoint?, at time: TimeInterval) {
+        guard time.isFinite, point.map({ $0.x.isFinite && $0.y.isFinite }) ?? true else { return }
+        guard pending.last.map({ time >= $0.time }) ?? true else { return }
+        pending.append(Sample(point: point, time: time))
+        if pending.count > 256 { pending.removeFirst(pending.count - 256) }
+    }
+
+    mutating func consume(until now: TimeInterval, frameDuration: TimeInterval, current: CGPoint?) -> [Step] {
+        let start = max(lastFrame ?? (now - frameDuration), now - min(0.1, max(0, frameDuration)))
+        var time = start
+        var result: [Step] = []
+        for sample in pending where sample.time >= start && sample.time <= now {
+            result.append(Step(point: sample.point, delta: sample.time - time))
+            time = sample.time
+        }
+        result.append(Step(point: current, delta: max(0, now - time)))
+        pending.removeAll(keepingCapacity: true)
+        lastFrame = now
+        return result
+    }
+
+    mutating func reset() { pending.removeAll(keepingCapacity: true); lastFrame = nil }
 }

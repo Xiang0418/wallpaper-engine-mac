@@ -267,3 +267,20 @@ monitors (including changed arrangement/scaling), drag across displays, switch
 Spaces/full-screen apps, close/open the lid, and run for several hours while
 monitoring memory. Automated tests simulate notifications and session replacement;
 they do not establish physical multi-display/Spaces or overnight stability.
+
+### Fast cursor turns between render frames
+
+The wallpaper view now records global/local mouse movement independently of the
+render cadence. A bounded 256-event queue feeds elapsed-time samples into the
+rope simulation, then rebuilds its geometry once per frame. This retains curved
+paths at low wallpaper frame rates without multiplying particle age or rebuilding
+SpriteKit segments for every mouse event. Pause/stop clear queued input, stale
+samples are discarded, and off-screen samples break the path. Reapplying an
+unchanged pause state no longer resets the scene's update clock.
+
+`run-scene-runtime-tests.sh` simulates ten cursor revolutions per second, 240 Hz
+mouse input and 30 fps drawing: frame-only sampling produces a maximum radial
+error around 74 scene units on a radius-180 circle, while event sampling stays
+below 3 (observed 0.77). It also verifies elapsed-time conservation, backlog
+bounds and stale-input removal. Hardware cursor feel still depends on the actual
+mouse event rate and configured wallpaper FPS.

@@ -74,7 +74,9 @@ final class SceneRopeTrail: SKNode {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func update(delta: Double, cursor: CGPoint?, enabled: Bool) {
+    func disconnectCursor() { previous = nil; remainder = 0 }
+
+    func update(delta: Double, cursor: CGPoint?, enabled: Bool, render: Bool = true) {
         let dt = min(0.1, max(0, delta))
         for i in particles.indices {
             particles[i].age += dt
@@ -109,10 +111,11 @@ final class SceneRopeTrail: SKNode {
                 path.append(Particle(point: cursor, velocity: CGVector(dx: Double.random(in: velocityX), dy: Double.random(in: velocityY)), age: 0, life: Double.random(in: life)))
             }
             previous = cursor
-        } else { previous = nil; remainder = 0 }
+        } else { disconnectCursor() }
         if particles.count > limit { particles.removeFirst(particles.count-limit) }
         // A live endpoint moves every rendered frame, independently of emission rate.
         if path.count > limit { path.removeFirst(path.count-limit) }
+        guard render else { return }
         var points = path
         if enabled, let cursor {
             points.append(Particle(point: cursor, velocity: .zero, age: 0, life: life.upperBound))

@@ -161,6 +161,47 @@ import AVFoundation
         precondition(smoothTrail.renderedVertices.contains { $0.x > 560 && $0.y > 500 && $0.y < 560 },
                      "Fast turns are curved instead of connecting emission points with straight chords")
         precondition(smoothTrail.renderedVertices.last == CGPoint(x:560,y:560))
+        // Ten revolutions/second viewed at 30 fps supplies only three frame
+        // positions per circle. Intermediate mouse events must preserve the arc.
+        var history = SceneCursorHistory()
+        let circularDefinition: [String: Any] = ["maxcount": 500, "emitter": [["rate": 25]],
+            "initializer": [["name": "lifetimerandom", "min": 1.0, "max": 1.0]]]
+        let sampledCircle = SceneRopeTrail(definition: circularDefinition)
+        let frameOnlyCircle = SceneRopeTrail(definition: circularDefinition)
+        func circle(_ time: Double) -> CGPoint {
+            CGPoint(x: 180 * cos(time * 20 * .pi), y: 180 * sin(time * 20 * .pi))
+        }
+        sampledCircle.update(delta: 0, cursor: circle(0), enabled: true)
+        frameOnlyCircle.update(delta: 0, cursor: circle(0), enabled: true)
+        for frame in 1...3 {
+            for event in ((frame-1)*8+1)...(frame*8) {
+                let time = Double(event)/240
+                history.record(circle(time), at: time)
+            }
+            let time = Double(frame)/30
+            let steps = history.consume(until: time, frameDuration: 1.0/30, current: circle(time))
+            precondition(abs(steps.reduce(0) { $0 + $1.delta } - 1.0/30) < 1e-9,
+                         "Input sampling must not multiply particle lifetime or motion time")
+            for step in steps { sampledCircle.update(delta: step.delta, cursor: step.point, enabled: true, render: false) }
+            sampledCircle.update(delta: 0, cursor: circle(time), enabled: true)
+            frameOnlyCircle.update(delta: 1.0/30, cursor: circle(time), enabled: true)
+        }
+        let sampledError = sampledCircle.renderedVertices.map { abs(hypot($0.x, $0.y)-180) }.max() ?? 180
+        let frameError = frameOnlyCircle.renderedVertices.map { abs(hypot($0.x, $0.y)-180) }.max() ?? 0
+        precondition(sampledError < 3 && frameError > 30,
+                     "Fast circles retain their radius instead of turning into triangular chords")
+        for event in 0..<10000 { history.record(.zero, at: Double(event)) }
+        precondition(history.count == 256, "Mouse event backlog stays bounded during a stalled render")
+        history.reset()
+        precondition(history.count == 0, "Pause/wake clears queued motion")
+        history.record(CGPoint(x: 999, y: 999), at: 1)
+        let afterStall = history.consume(until: 10, frameDuration: 0.1, current: .zero)
+        precondition(afterStall.count == 1 && afterStall[0].point == .zero, "Stale events are not replayed after a stall")
+        print("Fast circle radial error: event samples \(sampledError), frame-only \(frameError) scene units")
+
+        sampledCircle.disconnectCursor()
+        sampledCircle.update(delta: 0, cursor: CGPoint(x: 1000, y: 1000), enabled: true)
+        precondition(sampledCircle.segmentCount == 0, "Resume does not bridge unobserved motion while paused")
         let started = Date()
         for frame in 0..<600 {
             smoothTrail.update(delta:1.0/120,cursor:CGPoint(x:Double(frame),y:sin(Double(frame)*0.1)*100),enabled:true)
