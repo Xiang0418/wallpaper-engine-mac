@@ -43,6 +43,9 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     private var videoLooper: AVPlayerLooper?
     private var videoOutput: AVPlayerItemVideoOutput?
     private var readinessTimer: Timer?
+    private var restartVideo: (() -> Void)?
+    private var videoRecoveryAttempts = 0
+    private weak var videoNode: SKVideoNode?
     private var audioPlayers: [(AVAudioPlayer, Float)] = []
     private var temporaryDirectory: URL?
     private var cancellables = Set<AnyCancellable>()
@@ -62,6 +65,9 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         volumeSubscription = nil
         readinessTimer?.invalidate()
         readinessTimer = nil
+        restartVideo = nil
+        videoRecoveryAttempts = 0
+        videoNode = nil
         videoPlayer?.pause()
         videoLooper?.disableLooping()
         videoPlayer?.removeAllItems()
@@ -362,59 +368,118 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
                   let video = TEXParser(data: data).extractVideoData() else { continue }
             do {
                 let url = try mediaURL(data: video, extension: "mp4")
-                let item = AVPlayerItem(url: url)
-                let player = AVQueuePlayer()
-                videoPlayer = player
-                videoLooper = AVPlayerLooper(player: player, templateItem: item)
-                let node = SKVideoNode(avPlayer: player)
-                let size = (object.size ?? "1920 1080").parseVector2()
-                node.size = CGSize(width: size.0, height: size.1)
-                let origin = (object.origin ?? "960 540 0").parseVector3()
-                node.position = CGPoint(x: origin.0, y: origin.1)
-                let scale = (object.scale ?? "1 1 1").parseVector3()
-                node.xScale = scale.0
-                node.yScale = scale.1
-                node.zRotation = (object.angles ?? "0 0 0").parseVector3().2 * .pi / 180
-                node.alpha = object.alpha ?? 1
-                node.isHidden = true
-                scene.addChild(node)
-                var elapsed: Double = 0
-                var hasFrame = false
-                readinessTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self, weak node] timer in
-                    guard let self = self, let player = self.videoPlayer else { timer.invalidate(); return }
-                    if player.status == .failed || player.currentItem?.status == .failed || self.videoLooper?.status == .failed {
-                        self.reportFailure("Background playback failed: " + (player.currentItem?.error?.localizedDescription ?? player.error?.localizedDescription ?? self.videoLooper?.error?.localizedDescription ?? "Invalid video"))
-                        node?.isHidden = true
-                        player.pause()
-                        timer.invalidate()
-                        return
-                    }
-                    guard !hasFrame else { return }
-                    if let current = player.currentItem {
-                        if self.videoOutput == nil || !current.outputs.contains(where: { $0 === self.videoOutput }) {
-                            let output = AVPlayerItemVideoOutput(pixelBufferAttributes: nil)
-                            current.add(output)
-                            self.videoOutput = output
-                        }
-                        if let output = self.videoOutput,
-                           output.copyPixelBuffer(forItemTime: current.currentTime(), itemTimeForDisplay: nil) != nil {
-                            node?.isHidden = false
-                            self.fallbackNode?.isHidden = true
-                            self.errorNode?.isHidden = self.audioError == nil
-                            hasFrame = true
-                            current.remove(output)
-                            self.videoOutput = nil
-                            elapsed = 0
-                        } else if !self.sleeping && self.playRate != 0 {
-                            elapsed += 0.1
-                            if elapsed > 15 { self.reportFailure("Background video has not produced a frame") }
-                        }
-                    }
+                restartVideo = { [weak self, weak scene] in
+                    guard let self, let scene else { return }
+                    self.installVideo(object, url: url, in: scene)
                 }
+                installVideo(object, url: url, in: scene)
             } catch { reportFailure("Video extraction failed: " + error.localizedDescription) }
             return true
         }
         return false
+    }
+
+    /// Rebuild failed AVFoundation objects without reloading scripts or music.
+    @discardableResult
+    func recoverBackgroundPlayback() -> Bool {
+        guard !sleeping, playRate != 0, videoRecoveryAttempts < 3,
+              let restartVideo else { return false }
+        videoRecoveryAttempts += 1
+        Self.log("Rebuilding background player (attempt \(videoRecoveryAttempts)/3)")
+        restartVideo()
+        applyPlayback()
+        return true
+    }
+
+    private func installVideo(_ object: WESceneObject, url: URL, in scene: SKScene) {
+        readinessTimer?.invalidate()
+        videoPlayer?.pause()
+        videoLooper?.disableLooping()
+        videoPlayer?.removeAllItems()
+        videoOutput = nil
+        let previousNode = videoNode
+        let previousParent = previousNode?.parent
+        previousNode?.removeFromParent()
+        let item = AVPlayerItem(url: url)
+        let player = AVQueuePlayer()
+        videoPlayer = player
+        videoLooper = AVPlayerLooper(player: player, templateItem: item)
+        let node = SKVideoNode(avPlayer: player)
+        let size = (object.size ?? "1920 1080").parseVector2()
+        node.size = CGSize(width: size.0, height: size.1)
+        let origin = (object.origin ?? "960 540 0").parseVector3()
+        node.position = CGPoint(x: origin.0, y: origin.1)
+        let scale = (object.scale ?? "1 1 1").parseVector3()
+        node.xScale = scale.0
+        node.yScale = scale.1
+        node.zRotation = (object.angles ?? "0 0 0").parseVector3().2 * .pi / 180
+        node.alpha = object.alpha ?? 1
+        node.isHidden = true
+        if let previousNode, let previousParent {
+            node.position = previousNode.position
+            node.xScale = previousNode.xScale; node.yScale = previousNode.yScale
+            node.zRotation = previousNode.zRotation; node.zPosition = previousNode.zPosition
+            node.alpha = previousNode.alpha
+            previousParent.addChild(node)
+            if let id = object.id {
+                (scene as? InteractiveWallpaperScene)?.scriptRuntime?.replaceContentNode(id: id, with: node)
+            }
+        } else { scene.addChild(node) }
+        videoNode = node
+        var elapsed = 0.0
+        var healthyTime = 0.0
+        var hasFrame = false
+        var reportedFailure = false
+        readinessTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self, weak node] timer in
+            guard let self, let player = self.videoPlayer else { timer.invalidate(); return }
+            let failed = player.status == .failed || player.currentItem?.status == .failed || self.videoLooper?.status == .failed
+            let emptyQueue = hasFrame && player.items().isEmpty
+            if reportedFailure || failed || emptyQueue || (!hasFrame && elapsed >= 15) {
+                if !reportedFailure {
+                    let error = (player.currentItem?.error ?? player.error ?? self.videoLooper?.error) as NSError?
+                    let detail = error.map { "\($0.domain) (\($0.code)): \($0.localizedDescription)" }
+                        ?? (emptyQueue ? "Background video queue became empty" : "Background video has not produced a frame")
+                    Self.log("Background failure details: \(String(describing: error)); item log: \(String(describing: player.currentItem?.errorLog()?.events))")
+                    self.reportFailure("Background playback failed: " + detail)
+                    node?.isHidden = true
+                    player.pause()
+                    reportedFailure = true
+                    elapsed = 0
+                }
+                // Leave the monitor alive while paused/asleep so resume/wake can
+                // retry. Backoff and a finite budget prevent corrupt-file loops.
+                if !self.sleeping && self.playRate != 0 {
+                    elapsed += 0.1
+                    if elapsed >= pow(2, Double(self.videoRecoveryAttempts)) {
+                        _ = self.recoverBackgroundPlayback()
+                    }
+                }
+                return
+            }
+            guard !self.sleeping, self.playRate != 0 else { return }
+            if hasFrame {
+                healthyTime += 0.1
+                if healthyTime >= 60 { self.videoRecoveryAttempts = 0 }
+                return
+            }
+            elapsed += 0.1
+            guard let current = player.currentItem else { return }
+            if self.videoOutput == nil || !current.outputs.contains(where: { $0 === self.videoOutput }) {
+                let output = AVPlayerItemVideoOutput(pixelBufferAttributes: nil)
+                current.add(output)
+                self.videoOutput = output
+            }
+            if let output = self.videoOutput,
+               output.copyPixelBuffer(forItemTime: current.currentTime(), itemTimeForDisplay: nil) != nil {
+                node?.isHidden = false
+                self.fallbackNode?.isHidden = true
+                self.errorNode?.text = self.audioError
+                self.errorNode?.isHidden = self.audioError == nil
+                hasFrame = true
+                current.remove(output)
+                self.videoOutput = nil
+            }
+        }
     }
 
     private func loadAudio(from scene: WEScene, wallpaperDir: URL) {
@@ -854,6 +919,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     @objc func systemDidWake(_ notification: Notification) {
         print("[SceneVM] System woke up")
         sleeping = false
+        videoRecoveryAttempts = 0
         applyPlayback()
     }
 }

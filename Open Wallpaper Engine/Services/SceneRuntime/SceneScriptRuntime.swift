@@ -185,6 +185,10 @@ final class SceneScriptRuntime {
         }
     }
 
+    func replaceContentNode(id: Int, with node: SKNode) {
+        contentNodes[id] = node
+    }
+
     private func synchronizeNodes() {
         guard let states = context.evaluateScript("layers") else { return }
         for (index, object) in objects.enumerated() {

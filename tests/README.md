@@ -210,3 +210,14 @@ disconnected cursor paths, lifetime/pool bounds and the GPU beam width.
 The CPU timing measures the trail alone, not total scene frame time.
 `we-live-layout.png` uses actual video; older preview-based images contain a baked
 clock and must not be used for clock alignment. GPU output may be 1x or 2x on Retina.
+
+### Background playback recovery
+
+`run-scene-playback.sh` also exercises video-only recovery: the old queue is
+released, the replacement retains its layer parent, music and scripts survive,
+and extracted media files are reused. Retries back off at 1/2/4 seconds and stop
+after three attempts; sleep/pause suspends retries, wake renews the budget, and
+60 seconds of healthy playback resets it. A failed item/empty queue injected
+while asleep must automatically recover after wake and dismiss the preview.
+These checks simulate playback failure and workspace notifications; actual
+hardware decoder failure across physical lid-close/wake still requires device QA.
