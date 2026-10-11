@@ -28,6 +28,7 @@ struct WESceneGeneral: Codable {
     var orthogonalprojection: WEOrthogonalProjection?
     var ambientcolor: String?
     var skylightcolor: String?
+    var zoom: Double?
 
     // These fields can be Bool, Int, or an object {"user":..,"value":..} in different wallpapers.
     // We only need the String fields above for rendering, so skip strict decoding of the rest.
@@ -35,14 +36,17 @@ struct WESceneGeneral: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         // Use try? because these fields can be plain strings OR {"user":..,"value":..} objects
-        clearcolor = try? container.decodeIfPresent(String.self, forKey: .clearcolor)
+        clearcolor = (try? container.decode(String.self, forKey: .clearcolor))
+            ?? (try? container.decode(WEStoredValue<String>.self, forKey: .clearcolor))?.value
+        zoom = (try? container.decode(Double.self, forKey: .zoom))
+            ?? (try? container.decode(WEStoredValue<Double>.self, forKey: .zoom))?.value
         orthogonalprojection = try? container.decodeIfPresent(WEOrthogonalProjection.self, forKey: .orthogonalprojection)
         ambientcolor = try? container.decodeIfPresent(String.self, forKey: .ambientcolor)
         skylightcolor = try? container.decodeIfPresent(String.self, forKey: .skylightcolor)
     }
 
     enum CodingKeys: String, CodingKey {
-        case clearcolor, orthogonalprojection, ambientcolor, skylightcolor
+        case clearcolor, orthogonalprojection, ambientcolor, skylightcolor, zoom
     }
 }
 
@@ -54,7 +58,7 @@ struct WEOrthogonalProjection: Codable {
 // MARK: - Scene Objects
 
 /// Many WE scene fields can be either a plain value or a {"script":"..","value":..} object.
-/// This wrapper decodes the plain value and silently ignores script objects.
+/// This wrapper decodes the plain value and uses their stored value without executing scripts.
 private func decodeFlexible<T: Decodable>(_ type: T.Type, container: KeyedDecodingContainer<WESceneObject.CodingKeys>, key: WESceneObject.CodingKeys) -> T? {
     if let value = try? container.decode(T.self, forKey: key) { return value }
     return (try? container.decode(WEStoredValue<T>.self, forKey: key))?.value
@@ -69,6 +73,16 @@ struct WESceneObject: Codable {
     var volume: Double?
     var playbackmode: String?
     var startsilent: Bool?
+    var parent: Int?
+    var disablepropagation: Bool?
+    var text: String?
+    var font: String?
+    var pointsize: Double?
+    var horizontalalign: String?
+    var verticalalign: String?
+    var padding: String?
+    var effects: [WEEffect]?
+    var instance: WEMaterialPass?
     // Common
     var id: Int?
     var name: String?
@@ -95,6 +109,7 @@ struct WESceneObject: Codable {
     var instanceoverride: WEInstanceOverride?
 
     enum CodingKeys: String, CodingKey {
+        case parent, disablepropagation, text, font, pointsize, horizontalalign, verticalalign, padding, effects, instance
         case id, name, origin, scale, angles, visible
         case image, alpha, brightness, color, colorBlendMode, size, alignment
         case solid, copybackground, parallaxDepth, perspective
@@ -103,6 +118,16 @@ struct WESceneObject: Codable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        parent = try? c.decode(Int.self, forKey: .parent)
+        disablepropagation = try? c.decode(Bool.self, forKey: .disablepropagation)
+        text = decodeFlexible(String.self, container: c, key: .text)
+        font = decodeFlexible(String.self, container: c, key: .font)
+        pointsize = decodeFlexible(Double.self, container: c, key: .pointsize)
+        horizontalalign = decodeFlexible(String.self, container: c, key: .horizontalalign)
+        verticalalign = decodeFlexible(String.self, container: c, key: .verticalalign)
+        padding = decodeFlexible(String.self, container: c, key: .padding)
+        effects = try? c.decode([WEEffect].self, forKey: .effects)
+        instance = try? c.decode(WEMaterialPass.self, forKey: .instance)
         sound = try? c.decodeIfPresent([String].self, forKey: .sound)
         volume = decodeFlexible(Double.self, container: c, key: .volume)
         playbackmode = try? c.decodeIfPresent(String.self, forKey: .playbackmode)
@@ -120,8 +145,8 @@ struct WESceneObject: Codable {
         angles = decodeFlexible(String.self, container: c, key: .angles)
         visible = decodeFlexible(Bool.self, container: c, key: .visible)
         alpha = decodeFlexible(Double.self, container: c, key: .alpha)
-        brightness = try? c.decodeIfPresent(Double.self, forKey: .brightness)
-        color = try? c.decodeIfPresent(String.self, forKey: .color)
+        brightness = decodeFlexible(Double.self, container: c, key: .brightness)
+        color = decodeFlexible(String.self, container: c, key: .color)
         colorBlendMode = try? c.decodeIfPresent(Int.self, forKey: .colorBlendMode)
         size = decodeFlexible(String.self, container: c, key: .size)
         alignment = try? c.decodeIfPresent(String.self, forKey: .alignment)
@@ -175,7 +200,9 @@ struct WEMaterial: Codable {
 struct WEMaterialPass: Codable {
     var blending: String?    // "translucent", "additive"
     var shader: String?
-    var textures: [String]?
+    var textures: [String?]?
+    var constantshadervalues: [String: WEJSONValue]?
+    var combos: [String: Int]?
     var cullmode: String?
     var depthtest: String?
     var depthwrite: String?
@@ -296,5 +323,67 @@ extension String {
     func parseColor() -> (r: Double, g: Double, b: Double) {
         let v = self.parseVector3()
         return (r: v.0, g: v.1, b: v.2)
+    }
+}
+
+/// Lossless JSON values keep shader parameters and wrapped stored values available.
+indirect enum WEJSONValue: Codable {
+    case number(Double), string(String), bool(Bool), object([String: WEJSONValue]), array([WEJSONValue]), null
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if c.decodeNil() { self = .null }
+        else if let v = try? c.decode(Bool.self) { self = .bool(v) }
+        else if let v = try? c.decode(Double.self) { self = .number(v) }
+        else if let v = try? c.decode(String.self) { self = .string(v) }
+        else if let v = try? c.decode([String: WEJSONValue].self) { self = .object(v) }
+        else { self = .array(try c.decode([WEJSONValue].self)) }
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        switch self {
+        case .number(let v): try c.encode(v)
+        case .string(let v): try c.encode(v)
+        case .bool(let v): try c.encode(v)
+        case .object(let v): try c.encode(v)
+        case .array(let v): try c.encode(v)
+        case .null: try c.encodeNil()
+        }
+    }
+    var stored: WEJSONValue { if case .object(let v) = self { return v["value"]?.stored ?? .null }; return self }
+    var number: Double? { if case .number(let v) = stored { return v }; return nil }
+    var string: String? { if case .string(let v) = stored { return v }; return nil }
+    var bool: Bool? { if case .bool(let v) = stored { return v }; return nil }
+}
+struct WEEffect: Codable {
+    var file: String
+    var visible: WEJSONValue?
+    var passes: [WEMaterialPass]?
+}
+
+extension WEScene {
+    /// Apply direct project-default bindings before typed decoding. Script expressions
+    /// retain their exported value until the SceneScript runtime is implemented.
+    static func decode(data: Data, projectData: Data?) throws -> WEScene {
+        let root = try JSONSerialization.jsonObject(with: data)
+        var properties: [String: Any] = [:]
+        if let projectData = projectData,
+           let project = try? JSONSerialization.jsonObject(with: projectData) as? [String: Any],
+           let general = project["general"] as? [String: Any] {
+            properties = general["properties"] as? [String: Any] ?? [:]
+        }
+        func resolve(_ input: Any) -> Any {
+            if let array = input as? [Any] { return array.map(resolve) }
+            guard var object = input as? [String: Any] else { return input }
+            if let key = object["user"] as? String, let property = properties[key] as? [String: Any],
+               let value = property["value"], let stored = object["value"] {
+                // A slider bound to a vector needs engine conversion; don't replace it
+                // with a scalar and silently destroy the exported transform.
+                if (value is String && stored is String) || (value is NSNumber && stored is NSNumber) {
+                    object["value"] = value
+                }
+            }
+            return object.mapValues(resolve)
+        }
+        return try JSONDecoder().decode(WEScene.self, from: JSONSerialization.data(withJSONObject: resolve(root)))
     }
 }

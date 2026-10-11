@@ -10,6 +10,7 @@ import SpriteKit
 import SwiftUI
 import AVFoundation
 import Combine
+import CoreText
 
 class SceneWallpaperViewModel: ObservableObject {
     static func log(_ msg: String) {
@@ -25,6 +26,9 @@ class SceneWallpaperViewModel: ObservableObject {
 
     @Published var skScene: SKScene?
 
+    private var fontCache: [String: NSFont] = [:]
+    private var textureCache: [String: NSImage] = [:]
+    private(set) var renderingWarnings: [String] = []
     private var pkgParser: PKGParser?
     private var videoPlayer: AVQueuePlayer?
     private var videoLooper: AVPlayerLooper?
@@ -52,6 +56,9 @@ class SceneWallpaperViewModel: ObservableObject {
         audioPlayers.forEach { $0.0.stop() }
         audioPlayers.removeAll()
         skScene?.removeAllChildren()
+        fontCache.removeAll()
+        textureCache.removeAll()
+        renderingWarnings.removeAll()
         pkgParser = nil
         if let directory = temporaryDirectory {
             do { try FileManager.default.removeItem(at: directory) }
@@ -140,7 +147,9 @@ class SceneWallpaperViewModel: ObservableObject {
             do {
                 let parser = try PKGParser(url: pkgURL)
                 self.pkgParser = parser
-                scene = try parser.extractJSON(named: sceneFile, as: WEScene.self)
+                if let data = parser.extractFile(named: sceneFile) {
+                    scene = try WEScene.decode(data: data, projectData: try? Data(contentsOf: dir.appendingPathComponent("project.json")))
+                }
             } catch {
                 loadError = error.localizedDescription
                 Self.log("Failed to parse PKG: \(error)")
@@ -150,7 +159,7 @@ class SceneWallpaperViewModel: ObservableObject {
             self.pkgParser = nil
             do {
                 let data = try Data(contentsOf: looseSceneURL)
-                scene = try JSONDecoder().decode(WEScene.self, from: data)
+                scene = try WEScene.decode(data: data, projectData: try? Data(contentsOf: dir.appendingPathComponent("project.json")))
             } catch {
                 loadError = error.localizedDescription
                 Self.log("Failed to parse loose \(sceneFile): \(error)")
@@ -181,6 +190,13 @@ class SceneWallpaperViewModel: ObservableObject {
         let skScene = SKScene(size: CGSize(width: projection.width, height: projection.height))
         skScene.scaleMode = .aspectFill
 
+        let camera = SKCameraNode()
+        camera.position = CGPoint(x: skScene.size.width / 2, y: skScene.size.height / 2)
+        let zoom = scene.general.zoom ?? 1
+        camera.setScale(zoom.isFinite && zoom > 0 ? 1 / zoom : 1)
+        skScene.addChild(camera)
+        skScene.camera = camera
+
         // Background color from clearcolor
         if let colorStr = scene.general.clearcolor {
             let c = colorStr.parseColor()
@@ -188,33 +204,76 @@ class SceneWallpaperViewModel: ObservableObject {
         }
 
         addFallback(to: skScene, wallpaperDir: wallpaperDir)
-        // Select the largest visible image before loading any assets. A failed background
-        // must not be mistaken for success merely because a small overlay decoded.
-        let background = scene.objects.filter { $0.visible != false && $0.image != nil }.max {
-            let a = ($0.size ?? "0 0").parseVector2()
-            let b = ($1.size ?? "0 0").parseVector2()
+        // Keep transform-only and hidden objects: children still need their parent chain.
+        let containers = scene.objects.map { object -> SKNode in
+            let node = SKNode()
+            node.name = "layer:" + String(object.id ?? -1)
+            let p = (object.origin ?? "0 0 0").parseVector3()
+            let scale = (object.scale ?? "1 1 1").parseVector3()
+            node.position = CGPoint(x: p.0, y: p.1)
+            node.xScale = scale.0; node.yScale = scale.1
+            node.zRotation = (object.angles ?? "0 0 0").parseVector3().2 * .pi / 180
+            node.isHidden = object.visible == false
+            return node
+        }
+        var indices: [Int: Int] = [:]
+        for (i, object) in scene.objects.enumerated() {
+            if let id = object.id {
+                if indices[id] != nil { warn("Duplicate layer ID: \(id)") }
+                else { indices[id] = i }
+            }
+        }
+        for (i, object) in scene.objects.enumerated() {
+            var seen: Set<Int> = [i]
+            var ancestor = object.parent.flatMap { indices[$0] }
+            var cycle = false
+            while let a = ancestor {
+                if !seen.insert(a).inserted { cycle = true; break }
+                ancestor = scene.objects[a].parent.flatMap { indices[$0] }
+            }
+            if let parent = object.parent.flatMap({ indices[$0] }), !cycle {
+                containers[parent].addChild(containers[i])
+            } else {
+                skScene.addChild(containers[i])
+                if object.parent != nil { warn("Missing or cyclic parent for \(object.name ?? "layer")") }
+            }
+        }
+        func visible(_ node: SKNode) -> Bool {
+            var cursor: SKNode? = node
+            while let current = cursor { if current.isHidden { return false }; cursor = current.parent }
+            return true
+        }
+        let backgroundIndex = scene.objects.indices.filter {
+            scene.objects[$0].image != nil && visible(containers[$0])
+        }.max {
+            let a = (scene.objects[$0].size ?? "0 0").parseVector2()
+            let b = (scene.objects[$1].size ?? "0 0").parseVector2()
             return a.0 * a.1 < b.0 * b.1
         }
-        if let background = background {
-            if !buildVideoNode(background, in: skScene, wallpaperDir: wallpaperDir) {
-                if let node = buildImageNode(background, wallpaperDir: wallpaperDir) {
-                    skScene.addChild(node)
-                    fallbackNode?.isHidden = true
-                } else {
-                    reportFailure("Background unavailable: " + (background.name ?? background.image ?? "unknown"))
+        for (index, object) in scene.objects.enumerated() {
+            let holder = containers[index]
+            if index == backgroundIndex && buildVideoNode(object, in: skScene, wallpaperDir: wallpaperDir) {
+                if let video = skScene.children.last as? SKVideoNode {
+                    video.removeFromParent(); video.position = .zero
+                    video.xScale = 1; video.yScale = 1; video.zRotation = 0
+                    video.zPosition = CGFloat(index + 1)
+                    holder.addChild(video)
                 }
+            } else if let image = buildImageNode(object, wallpaperDir: wallpaperDir) {
+                image.position = .zero
+                image.zPosition = CGFloat(index + 1)
+                holder.addChild(image)
+                if index == backgroundIndex { fallbackNode?.isHidden = true }
+            } else if object.text != nil {
+                let text = buildTextNode(object, wallpaperDir: wallpaperDir)
+                text.zPosition = CGFloat(index + 1); holder.addChild(text)
+            } else if index == backgroundIndex {
+                reportFailure("Background unavailable: " + (object.name ?? object.image ?? "unknown"))
             }
-        } else {
-            reportFailure("Scene contains no supported background")
         }
-
-        // Preserve the existing static overlay support. Its success never hides fallback.
-        for (index, object) in scene.objects.enumerated() where object.visible != false && object.image != nil && object.image != background?.image {
-            if let node = buildImageNode(object, wallpaperDir: wallpaperDir), node.blendMode != .add {
-                node.zPosition = CGFloat(index + 1)
-                skScene.addChild(node)
-            }
-        }
+        if backgroundIndex == nil { reportFailure("Scene contains no supported background") }
+        // Orthographic export coordinates are canvas coordinates; camera.eye/center are
+        // editor navigation state, not a runtime offset for these 2D scene exports.
         return skScene
     }
 
@@ -248,7 +307,7 @@ class SceneWallpaperViewModel: ObservableObject {
               let model: WEModel = loadJSON(path: modelPath, wallpaperDir: wallpaperDir),
               let materialPath = model.material,
               let material: WEMaterial = loadJSON(path: materialPath, wallpaperDir: wallpaperDir),
-              let name = material.passes?.first?.textures?.first else { return false }
+              let name = material.passes?.first?.textures?.first ?? nil else { return false }
         let directory = (materialPath as NSString).deletingLastPathComponent
         for path in [directory + "/" + name + ".tex", "materials/" + name + ".tex", name + ".tex"] {
             guard let data = assetData(path, wallpaperDir: wallpaperDir),
@@ -348,28 +407,17 @@ class SceneWallpaperViewModel: ObservableObject {
     private func buildImageNode(_ obj: WESceneObject, wallpaperDir: URL) -> SKSpriteNode? {
         guard let imagePath = obj.image else { return nil }
 
-        // Load model JSON → material JSON → texture
         let model: WEModel? = loadJSON(path: imagePath, wallpaperDir: wallpaperDir)
-        guard let materialPath = model?.material else {
-            print("[SceneVM] No material for image object '\(obj.name ?? "")' (model path: \(imagePath))")
-            return nil
-        }
-
+        let materialPath = model?.material ?? (imagePath == "models/util/solidlayer.json" ? "materials/util/solidlayer.json" : "")
         let material: WEMaterial? = loadJSON(path: materialPath, wallpaperDir: wallpaperDir)
-        guard let textureName = material?.passes?.first?.textures?.first else {
-            print("[SceneVM] No texture in material '\(materialPath)' (material decoded: \(material != nil))")
+        let textureName = (obj.instance?.textures?.first ?? nil)
+            ?? (material?.passes?.first?.textures?.first ?? nil)
+            ?? (materialPath.hasPrefix("materials/util/solidlayer") ? "util/white" : nil)
+        guard let textureName = textureName,
+              let image = loadTexture(named: textureName, materialDir: materialPath, wallpaperDir: wallpaperDir) else {
+            warn("Missing image material/texture: " + imagePath)
             return nil
         }
-
-        // Load texture: try .tex file first, then common image formats
-        Self.log("Loading texture '\(textureName)' for '\(obj.name ?? "")'")
-        let image = loadTexture(named: textureName, materialDir: materialPath, wallpaperDir: wallpaperDir)
-        guard let image = image else {
-            Self.log("FAILED to load texture '\(textureName)' from material dir '\(materialPath)'")
-            return nil
-        }
-        Self.log("Texture loaded: \(image.size)")
-
         let texture = SKTexture(image: image)
         let node = SKSpriteNode(texture: texture)
 
@@ -396,7 +444,7 @@ class SceneWallpaperViewModel: ObservableObject {
         if let colorStr = obj.color {
             let c = colorStr.parseColor()
             node.color = NSColor(red: c.r, green: c.g, blue: c.b, alpha: 1.0)
-            node.colorBlendFactor = (obj.colorBlendMode ?? 0) > 0 ? 1.0 : 0.0
+            node.colorBlendFactor = 1.0
         }
 
         // Blend mode from material
@@ -408,6 +456,44 @@ class SceneWallpaperViewModel: ObservableObject {
             }
         }
 
+        node.anchorPoint = anchorPoint(obj.alignment)
+        // These are layer blend modes, not tint enable flags.
+        if obj.colorBlendMode == 6 { node.blendMode = .add }
+        if obj.colorBlendMode == 31 { node.blendMode = .screen }
+        applyEffects(obj, to: node, wallpaperDir: wallpaperDir)
+        return node
+    }
+
+    private func warn(_ message: String) {
+        if !renderingWarnings.contains(message) { renderingWarnings.append(message); Self.log(message) }
+    }
+
+    private func anchorPoint(_ alignment: String?) -> CGPoint {
+        let alignment = alignment ?? "center"
+        return CGPoint(x: alignment.contains("left") ? 0 : alignment.contains("right") ? 1 : 0.5,
+                       y: alignment.contains("bottom") ? 0 : alignment.contains("top") ? 1 : 0.5)
+    }
+
+    private func buildTextNode(_ object: WESceneObject, wallpaperDir: URL) -> SKLabelNode {
+        var font = NSFont.systemFont(ofSize: object.pointsize ?? 24)
+        if let path = object.font {
+            if let cached = fontCache[path] { font = cached }
+            else if let bytes = assetData(path, wallpaperDir: wallpaperDir),
+                    let provider = CGDataProvider(data: bytes as CFData), let cgFont = CGFont(provider) {
+                // An in-memory font avoids global registration conflicts across displays.
+                font = CTFontCreateWithGraphicsFont(cgFont, 24, nil, nil) as NSFont
+                fontCache[path] = font
+            } else { warn("Unable to load font: " + path) }
+        }
+        font = NSFont(descriptor: font.fontDescriptor, size: object.pointsize ?? 24) ?? font
+        let c = (object.color ?? "1 1 1").parseColor()
+        let node = SKLabelNode()
+        node.attributedText = NSAttributedString(string: object.text ?? "", attributes: [
+            .font: font, .foregroundColor: NSColor(red: c.r, green: c.g, blue: c.b, alpha: 1)
+        ])
+        node.alpha = object.alpha ?? 1
+        node.horizontalAlignmentMode = object.horizontalalign == "left" ? .left : object.horizontalalign == "right" ? .right : .center
+        node.verticalAlignmentMode = object.verticalalign == "top" ? .top : object.verticalalign == "bottom" ? .bottom : .center
         return node
     }
 
@@ -427,7 +513,7 @@ class SceneWallpaperViewModel: ObservableObject {
         // Particle texture from material
         if let materialPath = ps.material {
             let material: WEMaterial? = loadJSON(path: materialPath, wallpaperDir: wallpaperDir)
-            if let texName = material?.passes?.first?.textures?.first {
+            if let texName = material?.passes?.first?.textures?.first ?? nil {
                 let texImage = loadTexture(named: texName, materialDir: materialPath, wallpaperDir: wallpaperDir)
                     ?? generateProceduralTexture(named: texName)
                 if let img = texImage {
@@ -584,6 +670,21 @@ class SceneWallpaperViewModel: ObservableObject {
     }
 
     private func loadTexture(named name: String, materialDir: String, wallpaperDir: URL) -> NSImage? {
+        let cacheKey = materialDir + "|" + name
+        if let cached = textureCache[cacheKey] { return cached }
+        if name == "util/white" {
+            let image = NSImage(size: CGSize(width: 1, height: 1), flipped: false) { rect in
+                NSColor.white.setFill(); rect.fill(); return true
+            }
+            textureCache[cacheKey] = image
+            return image
+        }
+        if name == "particle/beam/beam_1" {
+            warn("Approximate built-in texture: " + name)
+            let image = generateRadialGradient(size: CGSize(width: 32, height: 32), color: .white)
+            textureCache[cacheKey] = image
+            return image
+        }
         // Build candidate .tex paths: relative to material dir, then relative to materials/ root
         let materialDirPath = (materialDir as NSString).deletingLastPathComponent
         var texPaths = [String]()
@@ -604,6 +705,7 @@ class SceneWallpaperViewModel: ObservableObject {
                 Self.log("  TEX from PKG '\(texPath)' size=\(texData.count)")
                 let texParser = TEXParser(data: Data(texData))  // Copy to reset indices
                 if let image = texParser.extractImage() {
+                    textureCache[cacheKey] = image
                     return image
                 }
                 Self.log("  TEXParser.extractImage() returned nil for '\(texPath)'")
@@ -614,11 +716,18 @@ class SceneWallpaperViewModel: ObservableObject {
             if let texData = try? Data(contentsOf: texURL) {
                 let texParser = TEXParser(data: texData)
                 if let image = texParser.extractImage() {
+                    textureCache[cacheKey] = image
                     return image
                 }
             }
         }
 
+        for path in [name, materialDirPath + "/" + name, "materials/" + name] {
+            if let data = assetData(path, wallpaperDir: wallpaperDir), let image = NSImage(data: data) {
+                textureCache[cacheKey] = image
+                return image
+            }
+        }
         // Try common image formats directly
         for ext in ["png", "jpg", "jpeg", "gif"] {
             let imgPath = materialDirPath.isEmpty ? "\(name).\(ext)" : "\(materialDirPath)/\(name).\(ext)"
@@ -647,8 +756,8 @@ class SceneWallpaperViewModel: ObservableObject {
             return generateRadialGradient(size: CGSize(width: size, height: size), color: .white)
 
         default:
-            // Generic soft circle
-            return generateRadialGradient(size: CGSize(width: size, height: size), color: .white)
+            warn("Unknown built-in particle texture: " + name)
+            return nil
         }
     }
 
@@ -691,5 +800,138 @@ class SceneWallpaperViewModel: ObservableObject {
         print("[SceneVM] System woke up")
         sleeping = false
         applyPlayback()
+    }
+}
+
+extension SceneWallpaperViewModel {
+    /// Explicit ports of the effects used by fixture 3799672625, composed in file order.
+    /// Unknown shaders are diagnosed; this is not a general GLSL translator.
+    private func applyEffects(_ object: WESceneObject, to node: SKSpriteNode, wallpaperDir: URL) {
+        let effects = (object.effects ?? []).filter { $0.visible?.bool != false }
+        guard !effects.isEmpty || object.brightness != nil else { return }
+        let tint = (object.color ?? "1 1 1").parseColor()
+        var source = "vec4 result = texture2D(u_texture, uv); if (result.a > 0.0) result.rgb /= result.a; result.rgb *= vec3(\(tint.r), \(tint.g), \(tint.b)) * \(object.brightness ?? 1);\n"
+        var uniforms: [SKUniform] = []
+        var step = 0
+        for effect in effects {
+            let key = URL(fileURLWithPath: effect.file).deletingLastPathComponent().lastPathComponent
+            let pass = effect.passes?.first
+            let values = pass?.constantshadervalues ?? [:]
+            func n(_ key: String, _ fallback: Double) -> String {
+                let value = values[key]?.number ?? fallback
+                return String(value.isFinite ? value : fallback)
+            }
+            func v(_ key: String, _ fallback: String, _ count: Int) -> String {
+                let numbers = (values[key]?.string ?? fallback).split(separator: " ").compactMap { Double($0) }
+                let defaults = fallback.split(separator: " ").compactMap { Double($0) }
+                let safe = (0..<count).map { i -> String in
+                    let value = i < numbers.count ? numbers[i] : defaults[i]
+                    return String(value.isFinite ? value : defaults[i])
+                }
+                return "vec\(count)(" + safe.joined(separator: ",") + ")"
+            }
+            let previous = "effect\(step)"
+            var body = ""
+            switch key {
+            case "opacity", "user_texture_alpha_overwrite_workaround":
+                var mask = "1.0"
+                if let textures = pass?.textures, textures.count > 1, let name = textures[1] {
+                    if let image = loadTexture(named: name, materialDir: "materials/", wallpaperDir: wallpaperDir) {
+                        let uniformName = "mask\(step)"
+                        uniforms.append(SKUniform(name: uniformName, texture: SKTexture(image: image)))
+                        mask = "texture2D(\(uniformName), uv).r"
+                    } else { warn("Missing opacity mask: " + name) }
+                }
+                body = "vec4 c = \(previous)(uv); c.a *= \(n("alpha", 1)) * \(mask); return c;"
+            case "spin":
+                let aspect = Double(node.size.width / max(1, node.size.height))
+                body = """
+                vec2 center = \(v("center", "0.5 0.5", 2));
+                vec2 p = uv - center; p.x *= \(aspect);
+                float axis = \(n("angle", 0)); float ratio = max(0.00001, \(n("ratio", 1)));
+                mat2 a = mat2(cos(axis), sin(axis), -sin(axis), cos(axis));
+                p = a * p; p.x *= ratio;
+                vec2 soft = p;
+                float t = \(n("speed", 1)) * u_time + \(n("phase", 0)) * 6.28318530718;
+                p = mat2(cos(t), sin(t), -sin(t), cos(t)) * p;
+                p.x /= ratio; p = transpose(a) * p; p.x /= \(aspect);
+                float feather = max(0.00001, \(n("feather", 0.002)));
+                float mask = 1.0 - smoothstep(\(n("size", 0.1)) - feather, \(n("size", 0.1)) + feather, length(soft));
+                return mix(\(previous)(uv), \(previous)(fract(p + center)), mask);
+                """
+            case "video":
+                // Zero-input output of the supplied 64-band shader. Audio data is phase 3.
+                warn("Audio spectrum uses zero input until phase three")
+                body = """
+                vec2 p = uv - 0.5; float coverage = 0.0;
+                for (int i = 0; i < 64; i++) {
+                    float t = 6.28318530718 * float(i) / 64.0;
+                    vec2 center = \(n("R", 0.3)) * vec2(sin(t), cos(t));
+                    coverage = max(coverage, 1.0 - step(0.004, length(p - center)));
+                }
+                return vec4(\(v("color", "1 1 1", 3)) * coverage, 1.0);
+                """
+            case "custom_user_texture":
+                if let textures = pass?.textures, textures.count > 1, let name = textures[1],
+                   let image = loadTexture(named: name, materialDir: "materials/", wallpaperDir: wallpaperDir) {
+                    let uniformName = "custom\(step)"
+                    uniforms.append(SKUniform(name: uniformName, texture: SKTexture(image: image)))
+                    body = "vec4 c = texture2D(\(uniformName), uv); if (c.a > 0.0) c.rgb /= c.a; c.rgb *= \(n("multiply", 1)); return c;"
+                } else { warn("Missing custom texture: " + effect.file); continue }
+            case "frame_builder_by_gariam":
+                guard (pass?.combos?["TYPE"] ?? 0) == 0 else {
+                    warn("Unsupported frame shape: " + effect.file); continue
+                }
+                let scale = (object.scale ?? "1 1 1").parseVector3()
+                body = """
+                vec4 pix = \(previous)(uv);
+                vec2 res = \(v("Reference resolution", "512 512", 2));
+                vec2 scale = vec2(\(abs(scale.0)), \(abs(scale.1)));
+                float softness = max(0.00001, \(n("ui_settings_gfx_antialiasing", 1)));
+                float thickness = \(n("Thickness", 0.1)) * res.x * 0.05;
+                float notchSize = max(0.000001, \(n("Notch size", 0.5)) * res.x * 0.2) * 1.41421356237;
+                vec2 p = (vec2(uv.x, 1.0-uv.y) + \(v("ui_editor_properties_position", "0 0", 2)) - 0.5) * res * scale;
+                float angle = \(n("ui_editor_properties_rotation", 0));
+                p = mat2(cos(angle), sin(angle), -sin(angle), cos(angle)) * p;
+                vec2 size = \(v("ui_editor_properties_size", "1 1", 2)) * res * 0.5 * scale - thickness - 2.0 * softness;
+                float enabled = p.x < 0.0 ? (p.y < 0.0 ? \(n("Top left", 1)) : \(n("Bottom left", 1))) : (p.y < 0.0 ? \(n("Top right", 1)) : \(n("Bottom right", 1)));
+                notchSize *= enabled;
+                vec2 sdf = abs(p) - size - \(n("Edge extrude", 0)) * res.x * 0.1;
+                float notch = length(abs(p) - size + notchSize - thickness) - notchSize + thickness;
+                vec2 quadrant = p - (size - (notchSize - thickness)) * sign(p);
+                if (!(sign(p.x) == sign(quadrant.x) && sign(p.y) == sign(quadrant.y))) notch = -100000.0;
+                float edge = max(notch, max(sdf.x, sdf.y));
+                float outside = 1.0;
+                if (edge >= thickness) { edge = thickness - edge + softness; outside = 0.0; }
+                if (edge > softness) outside = 0.0;
+                edge = smoothstep(-softness, softness, edge);
+                vec2 ia = \(v("insideAlpha", "0 0.3", 2));
+                vec2 oa = \(v("outAlpha", "0 0", 2));
+                vec2 fa = \(v("frameAlpha", "0 1", 2));
+                vec4 frame = vec4(mix(pix.rgb, \(v("frameColor", "1 1 1", 3)), fa.x), fa.y);
+                vec4 inside = vec4(mix(pix.rgb, \(v("inColor", "0.3 0.3 0.3", 3)), ia.x), ia.y);
+                vec4 outer = vec4(mix(pix.rgb, \(v("outColor", "0 0 0", 3)), oa.x), oa.y);
+                return mix(pix, mix(outside > 0.5 ? inside : outer, frame, edge), \(n("ui_editor_properties_opacity", 1)));
+                """
+            default:
+                warn("Unsupported effect: " + effect.file); continue
+            }
+            if key == "spin" {
+                // Inline the preceding pipeline at the rotated UV as well as the
+                // original UV. SpriteKit uniforms are only available inside main.
+                body = body.replacingOccurrences(
+                    of: "return mix(\(previous)(uv), \(previous)(fract(p + center)), mask);",
+                    with: "vec4 original = result; vec4 spun; { vec2 uv = fract(p + center); " + source + " spun = result; } result = mix(original, spun, mask);")
+            } else {
+                body = body.replacingOccurrences(of: "\(previous)(uv)", with: "result")
+                    .replacingOccurrences(of: "return ", with: "result = ")
+            }
+            step += 1
+            source += "{ \(body) }\n"
+        }
+        // SpriteKit consumes premultiplied output. Preserve the layer's tint and alpha.
+        source = "void main() { vec2 uv = v_tex_coord; " + source
+            + " vec4 c = result; c.rgb *= c.a; gl_FragColor = c * v_color_mix.a; }"
+        node.shader = SKShader(source: source, uniforms: uniforms)
     }
 }
