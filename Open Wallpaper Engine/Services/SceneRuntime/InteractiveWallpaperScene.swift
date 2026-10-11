@@ -14,6 +14,17 @@ final class InteractiveWallpaperScene: SKScene {
     private var spectrumSprites: [SKSpriteNode] = []
     var effectsDidUpdate: ((Int, [[String: Any]]) -> Void)?
     private var stopped = false
+    private var textureAnimations: [(SKSpriteNode, SceneTextureAnimation)] = []
+    private var scrollSprites: [SKSpriteNode] = []
+    private var effectTime: Double = 0
+
+    func bindTextureAnimation(node: SKSpriteNode, textures: [SKTexture], durations: [Double]) {
+        guard textures.count == durations.count, !textures.isEmpty else { return }
+        let animation = SceneTextureAnimation(textures: textures, durations: durations)
+        node.texture = animation.texture
+        textureAnimations.append((node, animation))
+    }
+
 
     override var isPaused: Bool {
         didSet {
@@ -39,8 +50,10 @@ final class InteractiveWallpaperScene: SKScene {
                 trail.zPosition = CGFloat(index+1)
                 addChild(trail); trails.append((node, trail))
             }
-            if let sprite = contentNodes[id] as? SKSpriteNode,
-               sprite.shader?.uniformNamed("u_audioSpectrum") != nil { spectrumSprites.append(sprite) }
+            if let sprite = contentNodes[id] as? SKSpriteNode {
+                if sprite.shader?.uniformNamed("u_audioSpectrum") != nil { spectrumSprites.append(sprite) }
+                if sprite.shader?.uniformNamed("u_scrollTime") != nil { scrollSprites.append(sprite) }
+            }
 
         }
         // Keep the authored transform available to scripts. Viewport adaptation
@@ -70,9 +83,12 @@ final class InteractiveWallpaperScene: SKScene {
     }
 
     override func update(_ currentTime: TimeInterval) {
-        guard !stopped else { return }
+        guard !stopped, !isPaused else { return }
         let dt = lastTime.map { min(0.1, max(0, currentTime-$0)) } ?? 0
         lastTime = currentTime
+        for (node, animation) in textureAnimations { animation.advance(dt); node.texture = animation.texture }
+        effectTime += dt
+        for sprite in scrollSprites { sprite.shader?.uniformNamed("u_scrollTime")?.floatValue = Float(effectTime) }
         var point: CGPoint?
         if let view, let window = view.window {
             let windowPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
@@ -139,6 +155,7 @@ final class InteractiveWallpaperScene: SKScene {
         cursorHistory.reset()
         scriptRuntime?.stop(); scriptRuntime = nil
         spectrumProvider = nil
+        textureAnimations.removeAll(); scrollSprites.removeAll()
         trails.removeAll(); spectrumSprites.removeAll(); audioOverlays.removeAll(); removeAllActions()
     }
 
@@ -267,4 +284,31 @@ struct SceneCursorHistory {
     }
 
     mutating func reset() { pending.removeAll(keepingCapacity: true); lastFrame = nil }
+}
+
+
+/// Unequal frame durations share the scene's pause-aware clock.
+final class SceneTextureAnimation {
+    private let textures: [SKTexture]
+    private let durations: [Double]
+    private let cycle: Double
+    private var elapsed = 0.0
+    private(set) var frameIndex = 0
+    var texture: SKTexture { textures[frameIndex] }
+    init(textures: [SKTexture], durations: [Double]) {
+        precondition(!textures.isEmpty && textures.count == durations.count)
+        self.textures = textures
+        self.durations = durations.map { $0.isFinite && $0 > 0 ? $0 : 1.0/30 }
+        cycle = self.durations.reduce(0, +)
+    }
+    func advance(_ delta: Double) {
+        guard delta.isFinite, delta > 0 else { return }
+        elapsed = (elapsed + delta).truncatingRemainder(dividingBy: cycle)
+        var remaining = elapsed
+        frameIndex = textures.count - 1
+        for index in durations.indices {
+            if remaining < durations[index] { frameIndex = index; break }
+            remaining -= durations[index]
+        }
+    }
 }

@@ -204,3 +204,23 @@ error around 74 scene units on a radius-180 circle, while event sampling stays
 below 3 (observed 0.77). It also verifies elapsed-time conservation, backlog
 bounds and stale-input removal. Hardware cursor feel still depends on the actual
 mouse event rate and configured wallpaper FPS.
+
+## TEXS animation and Scroll compatibility
+
+Adapted from the TEXS/Scroll work in release/0.9.0 (`4254fd5`) to the existing
+renderer. The release branch's renderer/audio manager is not merged.
+
+Run `bash tests/run-scene-compatibility.sh`.
+
+- TEXS0001/0002/0003 support includes multiple atlases/mipmaps, frame rectangles,
+  unequal durations, texture filtering and Retina-independent frame dimensions.
+  Existing RGBA, BC/DXT, channel-mask, encoded-image and MP4 paths remain.
+  Atlas counts, frame counts, dimensions and decoded memory are bounded; malformed
+  animation metadata falls back to the existing static-image path.
+- Scroll composes with ordered effects and dynamic user bindings. Speed uses
+  signed-square conversion; UVs repeat via `fract`. Animation and Scroll use the
+  pause-aware scene clock, avoiding wake-time jumps.
+
+Synthetic TEXS tests cover truncation/nonfinite coordinates, LZ4 and BC3 decoding,
+actual GPU atlas colors and Scroll+opacity output. Run the existing rendering,
+playback and runtime suites against fixture 3799672625 as regression checks.
