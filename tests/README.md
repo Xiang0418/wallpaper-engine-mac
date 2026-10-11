@@ -152,3 +152,55 @@ Automated checks include:
 `/tmp/we-phase3-integrated.png` is a QA image over a deliberately low-resolution
 preview background. Passing tests does not establish Windows visual parity,
 long-duration memory stability or complete support for all scene wallpapers.
+
+### Clock layout and rope smoothness regression
+
+Text labels retain the packaged fonts and a stable baseline across clock ticks.
+The fixture's exported heights (140, 134, 61) match the two fonts' ascender minus
+descender at 300 / 72 pixels per point (within one scene pixel). The renderer
+uses that raster scale independently of Mac backing scale. Padding no longer
+insets the text advance. This is inferred from this export and its Windows
+reference, not a verified contract for every Wallpaper Engine version.
+The rendering test freezes the displayed time at 02:55:43 for reference comparison.
+Center alignment uses half the ascent for the baseline; horizontal alignment uses
+SpriteKit glyph bounds rather than typographic advance. The fixed-time capture
+was visually compared with the supplied Windows screenshot; pixel-exact parity
+is not asserted.
+
+Ropes retain cursor positions every frame independently of the 25 Hz particle
+emitter. Bounded Hermite interpolation adds curved spans (up to 16 subdivisions,
+about six scene pixels apart on ordinary spans) with at most 4096 rendered segments.
+The beam has a narrow core and faint halo; it substitutes for the unavailable
+`particle/beam/beam_1` resource. Tests cover turns between emission ticks,
+disconnected cursor paths, lifetime/pool bounds and the GPU beam width.
+The CPU timing measures the trail alone, not total scene frame time.
+`we-live-layout.png` uses actual video; older preview-based images contain a baked
+clock and must not be used for clock alignment. GPU output may be 1x or 2x on Retina.
+
+### Background playback recovery
+
+`run-scene-playback.sh` also exercises video-only recovery: the old queue is
+released, the replacement retains its layer parent, music and scripts survive,
+and extracted media files are reused. Retries back off at 1/2/4 seconds and stop
+after three attempts; sleep/pause suspends retries, wake renews the budget, and
+60 seconds of healthy playback resets it. A failed item/empty queue injected
+while asleep must automatically recover after wake and dismiss the preview.
+These checks simulate playback failure and workspace notifications; actual
+hardware decoder failure across physical lid-close/wake still requires device QA.
+
+### Fast cursor turns between render frames
+
+The wallpaper view now records global/local mouse movement independently of the
+render cadence. A bounded 256-event queue feeds elapsed-time samples into the
+rope simulation, then rebuilds its geometry once per frame. This retains curved
+paths at low wallpaper frame rates without multiplying particle age or rebuilding
+SpriteKit segments for every mouse event. Pause/stop clear queued input, stale
+samples are discarded, and off-screen samples break the path. Reapplying an
+unchanged pause state no longer resets the scene's update clock.
+
+`run-scene-runtime-tests.sh` simulates ten cursor revolutions per second, 240 Hz
+mouse input and 30 fps drawing: frame-only sampling produces a maximum radial
+error around 74 scene units on a radius-180 circle, while event sampling stays
+below 3 (observed 0.77). It also verifies elapsed-time conservation, backlog
+bounds and stale-input removal. Hardware cursor feel still depends on the actual
+mouse event rate and configured wallpaper FPS.

@@ -87,11 +87,82 @@ import AVFoundation
         precondition(source.snapshot(at:0.1,volume:0,playing:true).allSatisfy{$0 == 0})
         precondition(source.snapshot(at:0.1,volume:1,playing:false).allSatisfy{$0 == 0})
         source.stop()
+        let label = SceneTextNode(text:"12",font:.systemFont(ofSize:30),color:.white,
+                                  size:CGSize(width:165,height:140),padding:CGSize(width:32,height:32),
+                                  horizontal:"right",vertical:"center")
+        let baseline = label.position.y
+        let edge = label.position.x
+        precondition(abs(edge) < 0.001 && label.layoutBounds.maxX == 0 && label.horizontalAlignmentMode == .right)
+        label.updateText("59")
+        precondition(label.position.y == baseline && abs(label.position.x - edge) < 0.001,
+                     "Clock ticks preserve text alignment and the font baseline")
         let trail = SceneRopeTrail(definition:["maxcount":10,"emitter":[["rate":100]],"initializer":[["name":"lifetimerandom","min":1,"max":1]]])
         for _ in 0..<100 { trail.update(delta:0.1,cursor:CGPoint(x:20,y:40),enabled:true) }
         precondition(trail.particleCount <= 10)
         for _ in 0..<20 { trail.update(delta:0.1,cursor:nil,enabled:false) }
         precondition(trail.particleCount == 0)
+        let smoothTrail = SceneRopeTrail(definition:["maxcount":100,"emitter":[["rate":25]],"initializer":[["name":"lifetimerandom","min":1,"max":1]]])
+        smoothTrail.update(delta:0.04,cursor:CGPoint(x:10,y:20),enabled:true)
+        let count = smoothTrail.particleCount
+        smoothTrail.update(delta:1.0/120,cursor:CGPoint(x:40,y:20),enabled:true)
+        precondition(smoothTrail.particleCount == count && smoothTrail.renderedTip == CGPoint(x:40,y:20))
+        precondition(smoothTrail.segmentCount >= 5, "Live head advances between 25 Hz emission ticks")
+        smoothTrail.update(delta:0.01,cursor:nil,enabled:false)
+        smoothTrail.update(delta:0.01,cursor:CGPoint(x:500,y:500),enabled:true)
+        precondition(smoothTrail.segmentCount == 0, "Leaving/reentering does not bridge disconnected paths")
+        smoothTrail.update(delta:0.008,cursor:CGPoint(x:560,y:500),enabled:true)
+        smoothTrail.update(delta:0.008,cursor:CGPoint(x:560,y:560),enabled:true)
+        precondition(smoothTrail.renderedVertices.contains { $0.x > 560 && $0.y > 500 && $0.y < 560 },
+                     "Fast turns are curved instead of connecting emission points with straight chords")
+        precondition(smoothTrail.renderedVertices.last == CGPoint(x:560,y:560))
+        // Ten revolutions/second viewed at 30 fps supplies only three frame
+        // positions per circle. Intermediate mouse events must preserve the arc.
+        var history = SceneCursorHistory()
+        let circularDefinition: [String: Any] = ["maxcount": 500, "emitter": [["rate": 25]],
+            "initializer": [["name": "lifetimerandom", "min": 1.0, "max": 1.0]]]
+        let sampledCircle = SceneRopeTrail(definition: circularDefinition)
+        let frameOnlyCircle = SceneRopeTrail(definition: circularDefinition)
+        func circle(_ time: Double) -> CGPoint {
+            CGPoint(x: 180 * cos(time * 20 * .pi), y: 180 * sin(time * 20 * .pi))
+        }
+        sampledCircle.update(delta: 0, cursor: circle(0), enabled: true)
+        frameOnlyCircle.update(delta: 0, cursor: circle(0), enabled: true)
+        for frame in 1...3 {
+            for event in ((frame-1)*8+1)...(frame*8) {
+                let time = Double(event)/240
+                history.record(circle(time), at: time)
+            }
+            let time = Double(frame)/30
+            let steps = history.consume(until: time, frameDuration: 1.0/30, current: circle(time))
+            precondition(abs(steps.reduce(0) { $0 + $1.delta } - 1.0/30) < 1e-9,
+                         "Input sampling must not multiply particle lifetime or motion time")
+            for step in steps { sampledCircle.update(delta: step.delta, cursor: step.point, enabled: true, render: false) }
+            sampledCircle.update(delta: 0, cursor: circle(time), enabled: true)
+            frameOnlyCircle.update(delta: 1.0/30, cursor: circle(time), enabled: true)
+        }
+        let sampledError = sampledCircle.renderedVertices.map { abs(hypot($0.x, $0.y)-180) }.max() ?? 180
+        let frameError = frameOnlyCircle.renderedVertices.map { abs(hypot($0.x, $0.y)-180) }.max() ?? 0
+        precondition(sampledError < 3 && frameError > 30,
+                     "Fast circles retain their radius instead of turning into triangular chords")
+        for event in 0..<10000 { history.record(.zero, at: Double(event)) }
+        precondition(history.count == 256, "Mouse event backlog stays bounded during a stalled render")
+        history.reset()
+        precondition(history.count == 0, "Pause/wake clears queued motion")
+        history.record(CGPoint(x: 999, y: 999), at: 1)
+        let afterStall = history.consume(until: 10, frameDuration: 0.1, current: .zero)
+        precondition(afterStall.count == 1 && afterStall[0].point == .zero, "Stale events are not replayed after a stall")
+        print("Fast circle radial error: event samples \(sampledError), frame-only \(frameError) scene units")
+
+        sampledCircle.disconnectCursor()
+        sampledCircle.update(delta: 0, cursor: CGPoint(x: 1000, y: 1000), enabled: true)
+        precondition(sampledCircle.segmentCount == 0, "Resume does not bridge unobserved motion while paused")
+        let started = Date()
+        for frame in 0..<600 {
+            smoothTrail.update(delta:1.0/120,cursor:CGPoint(x:Double(frame),y:sin(Double(frame)*0.1)*100),enabled:true)
+        }
+        precondition(smoothTrail.children.count <= 1600, "Segment pool remains bounded")
+        print("Rope CPU update: \(Date().timeIntervalSince(started) / 600 * 1000) ms/frame (600 frames)")
+
         if CommandLine.arguments.count > 1 {
             errors.removeAll()
             let data = try Data(contentsOf:URL(fileURLWithPath:CommandLine.arguments[1]))
