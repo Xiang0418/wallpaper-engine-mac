@@ -70,10 +70,37 @@ final class AppDelegate {
         check(scene.descendants.compactMap { $0 as? SKLabelNode }.filter { $0.attributedText != nil }.count == 3, "Three clock labels load packaged fonts")
         let fonts = scene.descendants.compactMap { ($0 as? SKLabelNode)?.attributedText?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont }
         check(Set(fonts.map { $0.fontName }).count == 2, "Both distinct packaged fonts are used")
+        for (id, expectedHeight) in [(546, 140.0), (547, 134.0), (548, 61.0)] {
+            let label = layer(id).children.first as! SceneTextNode
+            let font = label.attributedText!.attribute(.font, at:0, effectiveRange:nil) as! NSFont
+            check(abs(font.ascender-font.descender-expectedHeight) < 1,
+                  "Packaged text height matches font raster metrics for layer \(id)")
+        }
+
+        let interactive = scene as! InteractiveWallpaperScene
+        let audio = layer(509)
+        let authoredPosition = audio.position
+        let clockPosition = layer(545).convert(.zero, to:scene)
+        for aspect in [3024.0/1964, 1.6, 21.0/9] {
+            let width = min(1920,1080*aspect), height = min(1080,1920/aspect)
+            let viewport = CGRect(x:(1920-width)/2,y:(1080-height)/2,width:width,height:height)
+            interactive.layoutAudioOverlays(in:viewport)
+            let bounds = audio.calculateAccumulatedFrame().offsetBy(dx:audio.parent!.position.x,dy:audio.parent!.position.y)
+            check(viewport.insetBy(dx:7.9,dy:7.9).contains(bounds), "Audio group stays inside cropped viewport at aspect \(aspect)")
+            let position = audio.parent!.position
+            for _ in 0..<10 {
+                interactive.scriptRuntime?.update(delta:1.0/60,cursor:CGPoint(x:-1e6,y:-1e6))
+                interactive.layoutAudioOverlays(in:viewport)
+            }
+            check(audio.parent!.position == position && audio.position == authoredPosition, "Viewport correction preserves authored coordinates without drift")
+            check(layer(545).convert(.zero,to:scene) == clockPosition, "Viewport correction leaves the clock unchanged")
+        }
+        interactive.layoutAudioOverlays(in:CGRect(x:0,y:0,width:1920,height:1080))
+        check(audio.parent!.position == .zero, "Returning to 16:9 restores original audio position")
 
         check(abs(layer(425).xScale - 1.2) < 0.0001 && (layer(425).children.first as? SKSpriteNode)?.blendMode == .add, "Flare scale and additive blending")
         check(layer(529).children.first is SKSpriteNode && (layer(529).children.first as? SKSpriteNode)?.shader != nil, "Cover mask shader is attached")
-        check(model.renderingWarnings.count == 1, "No missing materials, effects, textures or fonts")
+        check(model.renderingWarnings.isEmpty, "No missing materials, effects, textures or fonts")
         let view = SKView(frame: NSRect(x: 0, y: 0, width: 1920, height: 1080))
         view.ignoresSiblingOrder = false
         let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
@@ -81,6 +108,29 @@ final class AppDelegate {
         view.presentScene(scene)
         AppDelegate.shared.wallpaperViewModel.playRate = 1
         RunLoop.main.run(until: Date().addingTimeInterval(3))
+        scene.isPaused = true
+        for (id, digits) in [(546, "02"), (547, "55"), (548, "43")] {
+            (layer(id).children.first as? SceneTextNode)?.updateText(digits)
+        }
+        if let live = view.texture(from: scene) {
+            try NSBitmapImageRep(cgImage: live.cgImage()).representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "/tmp/we-live-layout.png"))
+        }
+        window.setContentSize(NSSize(width:1512,height:982))
+        view.frame = CGRect(x:0,y:0,width:1512,height:982)
+        interactive.updateViewportLayout()
+        let topLeft = scene.convertPoint(fromView:.zero)
+        let bottomRight = scene.convertPoint(fromView:CGPoint(x:1512,y:982))
+        let visible = CGRect(x:min(topLeft.x,bottomRight.x),y:min(topLeft.y,bottomRight.y),
+                             width:abs(bottomRight.x-topLeft.x),height:abs(bottomRight.y-topLeft.y))
+        let audioBounds = audio.calculateAccumulatedFrame().offsetBy(dx:audio.parent!.position.x,dy:audio.parent!.position.y)
+        check(visible.contains(audioBounds), "Actual Mac aspect-fill view retains the entire audio group")
+        if let mac = view.texture(from:scene,crop:visible) {
+            try NSBitmapImageRep(cgImage:mac.cgImage()).representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:"/tmp/we-mac-aspect-layout.png"))
+        }
+        window.setContentSize(NSSize(width:1920,height:1080))
+        view.frame = CGRect(x:0,y:0,width:1920,height:1080)
+        interactive.updateViewportLayout()
+        scene.isPaused = false
         // Render static layers over the preview for repeatable visual QA.
         AppDelegate.shared.wallpaperViewModel.playRate = 0
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
@@ -89,7 +139,7 @@ final class AppDelegate {
         guard let texture = view.texture(from: scene), let cg = texture.cgImage() as CGImage? else { fatalError("Render failed") }
         let bitmap = NSBitmapImageRep(cgImage: cg)
         try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "/tmp/we-phase2-scene.png"))
-        check(bitmap.pixelsWide == 1920, "Scene renders to image")
+        check(bitmap.pixelsWide == 1920 || bitmap.pixelsWide == 3840, "Scene renders at display backing resolution")
         let cover = layer(529).children.first as! SKSpriteNode
         if let isolated = view.texture(from: cover, crop: CGRect(x: -150, y: -150, width: 300, height: 300)) {
             let pixels = NSBitmapImageRep(cgImage: isolated.cgImage())
@@ -98,11 +148,57 @@ final class AppDelegate {
             check(center > 0.9 && corner < 0.1, "GPU cover mask preserves center and removes corners")
         } else { fatalError("Cannot render cover mask") }
 
-        // Force dock layers visible solely in this test to compile and inspect frame effects.
-        layer(146).isHidden = false; layer(147).isHidden = false; layer(151).isHidden = false
-        if let texture = view.texture(from: scene) {
-            try NSBitmapImageRep(cgImage: texture.cgImage()).representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "/tmp/we-phase2-dock.png"))
+        let runtime = interactive.scriptRuntime!
+        runtime.applyUserProperties(["appdockenabled":true,"appdockenable1":true,"appdockenable15":true])
+        for _ in 0..<60 { runtime.update(delta:1.0/60,cursor:CGPoint(x:960,y:80)) }
+        check(runtime.diagnostics.isEmpty,"Original scripts run against phase-two nodes without exceptions")
+        check(!layer(146).isHidden && !layer(155).isHidden,"User properties enable the real dock containers")
+        let clockText=(layer(548).children.first as! SKLabelNode).attributedText!.string
+        check(clockText.count == 2 && Int(clockText) != nil,"Live seconds preserve attributed packaged font")
+        let launcher=layer(155).children.first as! SKSpriteNode
+        let originalIcon=launcher.texture
+        runtime.applyUserProperties(["launcher1":fixture.appendingPathComponent("project.json").path])
+        check(launcher.texture !== originalIcon,"Local shortcut uses the native macOS file/application icon")
+        runtime.applyUserProperties(["launcher1":""])
+        check(launcher.texture === originalIcon,"Clearing shortcut restores the package icon")
+        let hit=launcher.convert(CGPoint(x:0,y:launcher.size.height*0.5),to:scene)
+        var launches=0
+        runtime.openShortcut={ _ in launches += 1 }
+        runtime.applyUserProperties(["launcher1":"https://example.com"])
+        runtime.mouseDown(at:hit);runtime.mouseUp(at:hit)
+        check(launches == 1,"Actual transformed launcher dispatches one shortcut click")
+        let previousY=layer(155).position.y
+        for _ in 0..<5 { runtime.update(delta:1.0/60,cursor:hit) }
+        check(layer(155).position.y != previousY,"Click starts original launcher bounce animation")
+        let spectrum=layer(509).children.compactMap { $0 as? SKSpriteNode }.first!
+        let shader=spectrum.shader!
+        func spectrumPixels(_ value:Float) -> Data {
+            shader.uniformNamed("u_audioSpectrum")!.textureValue=SceneSpectrumTexture.texture(Array(repeating:value,count:64))
+            let texture=view.texture(from:spectrum,crop:CGRect(x:-100,y:-100,width:200,height:200))!
+            return texture.cgImage().dataProvider!.data! as Data
         }
+        check(spectrumPixels(0) != spectrumPixels(0.8),"Integrated spectrum shader pixels respond to frequency data")
+        if let texture = view.texture(from: scene) {
+            try NSBitmapImageRep(cgImage: texture.cgImage()).representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "/tmp/we-phase3-integrated.png"))
+        }
+        let trail = SceneRopeTrail(definition:["emitter":[["rate":25]],
+            "initializer":[["name":"lifetimerandom","min":1,"max":1],["name":"sizerandom","min":5,"max":5]],
+            "operator":[["name":"sizechange","startvalue":3.0,"endvalue":0.0,"endtime":0.5]]])
+        trail.update(delta:0.04,cursor:CGPoint(x:20,y:100),enabled:true)
+        trail.update(delta:0.04,cursor:CGPoint(x:300,y:100),enabled:true)
+        let trailGroup = SKNode()
+        let trailBackground = SKSpriteNode(color:.black,size:CGSize(width:400,height:200))
+        trailBackground.anchorPoint = .zero
+        trailBackground.zPosition = -1
+        trailGroup.addChild(trailBackground); trailGroup.addChild(trail)
+        scene.addChild(trailGroup)
+        let trailTexture = view.texture(from:trailGroup)!
+        let trailBitmap = NSBitmapImageRep(cgImage:trailTexture.cgImage())
+        let profile = (0..<trailBitmap.pixelsHigh).map { trailBitmap.colorAt(x:150,y:$0)!.usingColorSpace(.deviceRGB)!.redComponent }
+        let peak = profile.max() ?? 0
+        let corePixels = profile.filter { $0 > peak * 0.5 }.count
+        try trailBitmap.representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:"/tmp/we-thin-trail.png"))
+        check(peak > 0.1 && corePixels > 0 && corePixels <= 4,"GPU beam has a narrow luminous core, not a filled 15-pixel ribbon")
         model.stop()
         print("All phase-two rendering checks passed")
     }

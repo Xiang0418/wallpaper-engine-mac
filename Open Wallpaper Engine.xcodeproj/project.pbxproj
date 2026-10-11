@@ -61,10 +61,17 @@
 		CC0000000000000000000007 /* WorkshopAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000000000000000000008 /* WorkshopAPIService.swift */; };
 		CC0000000000000000000009 /* WorkshopViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000000A /* WorkshopViewModel.swift */; };
 		CC000000000000000000000B /* WorkshopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000000C /* WorkshopView.swift */; };
+		CC3200000000000000000000 /* SceneRuntime/SceneScriptBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3100000000000000000000 /* SceneRuntime/SceneScriptBootstrap.swift */; };
+		CC3200000000000000000001 /* SceneRuntime/SceneScriptRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3100000000000000000001 /* SceneRuntime/SceneScriptRuntime.swift */; };
+		CC3200000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3100000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift */; };
+		CC3200000000000000000003 /* SceneRuntime/SceneRopeTrail.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3100000000000000000003 /* SceneRuntime/SceneRopeTrail.swift */; };
+		CC3200000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3100000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift */; };
+		CC3200000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3100000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift */; };
 		DAEE29C62A9CB52100633898 /* WebWallpaperViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAEE29C52A9CB52100633898 /* WebWallpaperViewModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		5EC47E762A2DB2E600120CCC /* Open Wallpaper Engine.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Open Wallpaper Engine.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E0700E52A859FAD00ADFE2E /* WallpaperNotFound.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = WallpaperNotFound.mp4; sourceTree = "<group>"; };
 		5E1670732A88EBEF00D1B199 /* change-signing-certificate.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "change-signing-certificate.png"; sourceTree = "<group>"; };
 		5E1670742A88ED8400D1B199 /* import-menu.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "import-menu.png"; sourceTree = "<group>"; };
@@ -101,7 +108,6 @@
 		5EAF3F732A87110700F85685 /* PluginsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginsPage.swift; sourceTree = "<group>"; };
 		5EB152A02A82ADEB007EA845 /* Open_Wallpaper_Engine.docc */ = {isa = PBXFileReference; lastKnownFileType = folder.documentationcatalog; path = Open_Wallpaper_Engine.docc; sourceTree = "<group>"; };
 		5EB4DB872A980532000A1FEA /* ExplorerItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplorerItem.swift; sourceTree = "<group>"; };
-		5EC47E762A2DB2E600120CCC /* Open Wallpaper Engine.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Open Wallpaper Engine.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		5EC47E7D2A2DB2E700120CCC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5EC47E802A2DB2E700120CCC /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		5EC47E872A2DB2E700120CCC /* Open_Wallpaper_Engine.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Open_Wallpaper_Engine.entitlements; sourceTree = "<group>"; };
@@ -132,6 +138,12 @@
 		CC0000000000000000000008 /* WorkshopAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkshopAPIService.swift; sourceTree = "<group>"; };
 		CC000000000000000000000A /* WorkshopViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkshopViewModel.swift; sourceTree = "<group>"; };
 		CC000000000000000000000C /* WorkshopView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkshopView.swift; sourceTree = "<group>"; };
+		CC3100000000000000000000 /* SceneRuntime/SceneScriptBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneScriptBootstrap.swift; sourceTree = "<group>"; };
+		CC3100000000000000000001 /* SceneRuntime/SceneScriptRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneScriptRuntime.swift; sourceTree = "<group>"; };
+		CC3100000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneAudioSpectrum.swift; sourceTree = "<group>"; };
+		CC3100000000000000000003 /* SceneRuntime/SceneRopeTrail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneRopeTrail.swift; sourceTree = "<group>"; };
+		CC3100000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/InteractiveWallpaperScene.swift; sourceTree = "<group>"; };
+		CC3100000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneSpectrumTexture.swift; sourceTree = "<group>"; };
 		DAEE29C52A9CB52100633898 /* WebWallpaperViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebWallpaperViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -214,6 +226,12 @@
 				5EF28EC02A8990D90013ABBE /* VideoWallpaperViewModel.swift */,
 				DAEE29C52A9CB52100633898 /* WebWallpaperViewModel.swift */,
 				AA1B2C3D4E5F600100ABCD04 /* SceneWallpaperViewModel.swift */,
+				CC3100000000000000000000 /* SceneRuntime/SceneScriptBootstrap.swift */,
+				CC3100000000000000000001 /* SceneRuntime/SceneScriptRuntime.swift */,
+				CC3100000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift */,
+				CC3100000000000000000003 /* SceneRuntime/SceneRopeTrail.swift */,
+				CC3100000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift */,
+				CC3100000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift */,
 				5E51A43B2AA33F5500E46E99 /* GlobalSettingsService.swift */,
 				BB0000000000000000000001 /* ObjCExceptionCatcher.h */,
 				BB0000000000000000000002 /* ObjCExceptionCatcher.m */,
@@ -465,6 +483,12 @@
 				AA1B2C3D4E5F600200ABCD02 /* TEXParser.swift in Sources */,
 				AA1B2C3D4E5F600200ABCD03 /* SceneModels.swift in Sources */,
 				AA1B2C3D4E5F600200ABCD04 /* SceneWallpaperViewModel.swift in Sources */,
+				CC3200000000000000000000 /* SceneRuntime/SceneScriptBootstrap.swift in Sources */,
+				CC3200000000000000000001 /* SceneRuntime/SceneScriptRuntime.swift in Sources */,
+				CC3200000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift in Sources */,
+				CC3200000000000000000003 /* SceneRuntime/SceneRopeTrail.swift in Sources */,
+				CC3200000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift in Sources */,
+				CC3200000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift in Sources */,
 				BB0000000000000000000003 /* ObjCExceptionCatcher.m in Sources */,
 				CC0000000000000000000001 /* WallpaperDirectory.swift in Sources */,
 				CC0000000000000000000003 /* ZipImporter.swift in Sources */,

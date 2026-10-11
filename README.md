@@ -85,8 +85,8 @@ The import panel now correctly handles both individual wallpaper folders and par
 ## Current Limitations
 
 - **Texture scope** — The first image/mipmap is decoded; animated texture sequences and other pixel formats remain unsupported.
-- **Particle effects** — Scene particle systems (rain, snow, sparkles) are parsed but disabled in rendering to avoid visual artifacts. The particle mapping code exists but needs refinement.
-- **Audio-reactive scripts** — Wallpaper Engine's JavaScript-based audio visualization scripts are not executed. Properties with scripts fall back to their static `value`.
+- **Particle effects** — The cursor-controlled rope trail in fixture 3799672625 is supported; general particle systems remain incomplete.
+- **Scene runtime** — Fixture SceneScript, live clocks, 24 launchers and package-music spectrum are integrated. See [scope and tests](tests/README.md#phase-three-runtime-and-integration).
 - **Shader effects** — Selected effects used by fixture 3799672625 are ported. Arbitrary GLSL, bloom and blur remain unsupported; unsupported effects are logged.
 - **Camera parallax** — Mouse-tracking camera movement is not implemented.
 - **Animated scenes** — Sprite animations and timeline-based object animations are not supported.
@@ -99,7 +99,7 @@ The import panel now correctly handles both individual wallpaper folders and par
 | Video (.mp4, .webm) | Working (original) |
 | Web (HTML/WebGL) | Working (patched) |
 | Scene (static images) | Working (new) |
-| Scene (particles) | Partial (disabled) |
+| Scene (particles) | Fixture rope trail |
 | Scene (DXT textures) | BC1/BC2/BC3 software decoding |
 | Application | Not supported |
 

@@ -76,10 +76,50 @@ final class AppDelegate {
         spin(1.5)
         check(player.currentTime().seconds < 3 && player.rate != 0, "Video loops at end")
         check(audio[0].0.currentTime > musicTime, "Video loop does not restart music")
+        let videoParent = videoNode.parent
+        let sceneBeforeRecovery = model.skScene
+        let mediaBeforeRecovery = try FileManager.default.contentsOfDirectory(atPath:directory.path).sorted()
+        let beforeRecoveryTime = audio[0].0.currentTime
+        check(model.recoverBackgroundPlayback(), "Failed-player recovery can rebuild video independently")
+        let replacement: AVQueuePlayer = value(model,"videoPlayer")!
+        check(replacement !== player && player.items().isEmpty, "Recovery releases old queue")
+        check(model.skScene === sceneBeforeRecovery, "Recovery preserves scene and script state")
+        let replacementNode = model.skScene!.descendants.compactMap { $0 as? SKVideoNode }.first!
+        check(replacementNode.parent === videoParent,
+              "Recovery retains video layer hierarchy")
+        spin(3)
+        check(!replacementNode.isHidden && replacement.currentItem?.status == .readyToPlay, "Recovered video produces a visible frame")
+        check(audio[0].0.currentTime > beforeRecoveryTime && audio[0].0.isPlaying, "Recovery does not restart music")
+        let mediaAfterRecovery = try FileManager.default.contentsOfDirectory(atPath:directory.path).sorted()
+        check(mediaAfterRecovery == mediaBeforeRecovery, "Recovery reuses extracted media without accumulating files")
+        check(model.recoverBackgroundPlayback() && model.recoverBackgroundPlayback() && !model.recoverBackgroundPlayback(), "Recovery stops after three attempts")
+        model.systemWillSleep(Notification(name:NSWorkspace.screensDidSleepNotification))
+        check(!model.recoverBackgroundPlayback(), "Recovery waits while asleep")
+        model.systemDidWake(Notification(name:NSWorkspace.screensDidWakeNotification))
+        check(model.recoverBackgroundPlayback(), "Wake restores recovery budget")
         model.currentWallpaper = WEWallpaper(project: .init(file: "missing.json", title: "Missing"), wallpaperDirectory: fixture)
         check(!FileManager.default.fileExists(atPath: directory.path), "Switch removes extracted media directory")
         check(player.items().isEmpty && !audio[0].0.isPlaying, "Switch stops and releases old media")
         check(model.skScene!.children.contains { ($0 as? SKLabelNode)?.text?.contains("Unable to load scene") == true }, "Missing scene displays failure reason")
+        let failingModel = SceneWallpaperViewModel(wallpaper:wallpaper)
+        spin(2)
+        let failedPlayer: AVQueuePlayer = value(failingModel,"videoPlayer")!
+        failingModel.systemWillSleep(Notification(name:NSWorkspace.screensDidSleepNotification))
+        let failedLooper: AVPlayerLooper = value(failingModel,"videoLooper")!
+        failedLooper.disableLooping()
+        failedPlayer.removeAllItems()
+        failedPlayer.insert(AVPlayerItem(url:fixture.appendingPathComponent("missing-recovery-test.mp4")),after:nil)
+        spin(1)
+        check(value(failingModel,"videoPlayer") as AVQueuePlayer? === failedPlayer, "Failed item is not rebuilt during sleep")
+        failingModel.systemDidWake(Notification(name:NSWorkspace.screensDidWakeNotification))
+        spin(6)
+        let recoveredPlayer: AVQueuePlayer = value(failingModel,"videoPlayer")!
+        check(recoveredPlayer !== failedPlayer && recoveredPlayer.currentItem?.status == .readyToPlay,
+              "Failed AVPlayerItem automatically recovers after wake")
+        check(failingModel.skScene!.descendants.compactMap { $0 as? SKVideoNode }.first?.isHidden == false,
+              "Automatic recovery replaces the failure preview with video")
+        failingModel.stop()
+        check(!failingModel.recoverBackgroundPlayback(), "Stopped sessions cannot restart")
         let broken = FileManager.default.temporaryDirectory.appendingPathComponent("WE-fixture-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: broken, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: broken) }

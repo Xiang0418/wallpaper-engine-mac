@@ -62,15 +62,13 @@ Implemented scope:
   object list independently of parent depth. Orthographic canvas size and zoom
   are applied; exported editor camera navigation is not a runtime translation.
 - In-memory Core Text fonts, stored text, color, alpha and text alignment.
-  Clock values remain exported values until phase-three scripts are implemented.
+  The integrated phase-three runtime now updates attributed text without replacing its packaged font.
 - Built-in solid layers and instance textures; four additive flares; red-channel
   opacity masks; ordered opacity/spin/custom-texture passes; the fixture's round
-  frame shader configuration. The spectrum shader draws its zero-input state,
-  without claiming audio reactivity. Spin uses SpriteKit scene time and pauses
+  frame shader configuration. The integrated spectrum shader consumes actual music frequency data. Spin uses SpriteKit scene time and pauses
   with the scene. Unknown effects are reported through `renderingWarnings`.
 - Project defaults resolve direct scalar/color bindings. Missing bindings and
-  scripts retain stored values. Expression evaluation, scalar-to-vector property
-  conversion, editable settings and persistence are not implemented here.
+  unsupported expressions retain stored values. The runtime resolves direct script-property bindings; full editable settings remain phase four.
 - Font/texture caches belong to the renderer and are cleared on stop/replacement.
 
 Limits requiring further work or external validation:
@@ -80,8 +78,129 @@ Limits requiring further work or external validation:
   animated texture sequences are not covered. Text baselines and blend appearance
   still need comparison with the original Windows renderer.
 - The missing `particle/beam/beam_1` engine texture has a procedural approximation;
-  the original resource is not bundled. Particle simulation remains phase three.
+  the original resource is not bundled. The integrated runtime simulates the fixture rope trail.
 - Windows reference screenshots and original engine resources were not available,
   so these tests do not establish pixel-identical parity or complete support for
-  other scene wallpapers. Scripts, interactive launchers and live clocks remain
-  phase three; full settings management remains phase four.
+  other scene wallpapers. Full settings management remains phase four.
+
+## Phase-three runtime and integration
+
+```sh
+bash tests/run-scene-runtime-tests.sh
+# Optional original scene.json extracted from your own package:
+bash tests/run-scene-runtime-tests.sh /absolute/path/to/scene.json
+bash tests/run-scene-rendering.sh /absolute/path/to/3799672625
+bash tests/run-scene-playback.sh /absolute/path/to/3799672625
+bash tests/run-wallpaper-volume.sh /absolute/path/to/3799672625
+```
+
+The integration branch is `codex/scene-runtime-integration`. It starts from
+`d589f03` (the existing playback/volume work) and includes a snapshot of phase-two
+changes plus the runtime. The original working directory is untouched. Merge or
+apply this branch as a combined phase-two/three change, not as a second independent
+copy of phase two. No installed wallpaper assets are changed.
+
+`SceneWallpaperViewModel` passes the original object JSON, phase-two transform
+containers and separate content nodes to `InteractiveWallpaperScene.install`.
+Scripts mutate existing transforms; text updates preserve attributed fonts.
+Material constants and visibility are uniforms, so script updates do not compile
+a new shader each frame. The circular 64-band spectrum is part of the existing
+ordered material pipeline, preserving downstream opacity and spin passes.
+
+`SceneScriptRuntime` supports the fixture's 13 distinct scripts: property-local
+scope, shared scene/layer objects, `Vec2`/`Vec3`, `WEMath`, init/update/destroy,
+settings events and pointer enter/leave/move/down/up/click. Direct scalar and vector
+bindings are resolved; `applyUserProperties` is the entry point for phase four.
+Exceptions disable only the failing script, with bounded diagnostics. Only WEMath
+module imports are supported. This is not a general SceneScript implementation;
+JavaScript runs in-process, with no execution-time watchdog for nonterminating
+third-party scripts.
+
+The original launcher scripts perform layout, hover scaling, bouncing and drag
+position persistence (namespaced by wallpaper path). `launcher1`–`launcher24`
+accept absolute macOS application/document paths or HTTP(S) URLs. Local targets
+use native macOS icons; clearing them restores package textures. An actual click
+is required to launch; scripts cannot open targets during initialization/update.
+Windows executables and shell-command strings are unsupported. This branch does
+not add a settings editor or guess replacements for Windows launcher targets.
+
+Mouse gestures are observed only over uncovered desktop areas, with coordinates
+converted through the actual SKView/camera. Finder remains click-through. Finder
+icons overlapping launchers, Mission Control and Spaces require manual validation;
+window bounds cannot distinguish individual Finder desktop icons. Monitors are
+removed when views detach. Drag releases and clicks are distinguished; pause
+cancels a captured gesture.
+
+Audio analysis reads bounded 1024-sample PCM windows on a worker queue at the
+existing AVAudioPlayer's current time. It does not open a second playback engine.
+The existing main-display audio owner, volume, mute, pause and independent looping
+remain in control. Spectrum currently mixes channels to mono and covers package
+music, not video soundtracks or other applications' system audio. The rope trail
+implements the fixture's rate, velocity, lifetime, color and sizechange operator,
+with a bounded particle count and per-segment age-based width.
+
+Automated checks include:
+
+- Script isolation, user-property changes, parent API, click-vs-drag behavior,
+  launch gating, shutdown and the actual package's clocks/24 launcher scripts.
+- Real sine-wave PCM analysis, silent/paused sources and bounded rope lifetime.
+- Integrated parent/font/mask regressions, actual transformed launcher hit tests,
+  original bounce animation and GPU spectrum pixel changes when bins change.
+- Existing playback, temporary-file cleanup, per-wallpaper volume, sleep/wake
+  and single-display audio ownership regressions.
+
+`/tmp/we-phase3-integrated.png` is a QA image over a deliberately low-resolution
+preview background. Passing tests does not establish Windows visual parity,
+long-duration memory stability or complete support for all scene wallpapers.
+
+### Clock layout and rope smoothness regression
+
+Text labels retain the packaged fonts and a stable baseline across clock ticks.
+The fixture's exported heights (140, 134, 61) match the two fonts' ascender minus
+descender at 300 / 72 pixels per point (within one scene pixel). The renderer
+uses that raster scale independently of Mac backing scale. Padding no longer
+insets the text advance. This is inferred from this export and its Windows
+reference, not a verified contract for every Wallpaper Engine version.
+The rendering test freezes the displayed time at 02:55:43 for reference comparison.
+Center alignment uses half the ascent for the baseline; horizontal alignment uses
+SpriteKit glyph bounds rather than typographic advance. The fixed-time capture
+was visually compared with the supplied Windows screenshot; pixel-exact parity
+is not asserted.
+
+Ropes retain cursor positions every frame independently of the 25 Hz particle
+emitter. Bounded Hermite interpolation adds curved spans (up to 16 subdivisions,
+about six scene pixels apart on ordinary spans) with at most 4096 rendered segments.
+The beam has a narrow core and faint halo; it substitutes for the unavailable
+`particle/beam/beam_1` resource. Tests cover turns between emission ticks,
+disconnected cursor paths, lifetime/pool bounds and the GPU beam width.
+The CPU timing measures the trail alone, not total scene frame time.
+`we-live-layout.png` uses actual video; older preview-based images contain a baked
+clock and must not be used for clock alignment. GPU output may be 1x or 2x on Retina.
+
+### Background playback recovery
+
+`run-scene-playback.sh` also exercises video-only recovery: the old queue is
+released, the replacement retains its layer parent, music and scripts survive,
+and extracted media files are reused. Retries back off at 1/2/4 seconds and stop
+after three attempts; sleep/pause suspends retries, wake renews the budget, and
+60 seconds of healthy playback resets it. A failed item/empty queue injected
+while asleep must automatically recover after wake and dismiss the preview.
+These checks simulate playback failure and workspace notifications; actual
+hardware decoder failure across physical lid-close/wake still requires device QA.
+
+### Fast cursor turns between render frames
+
+The wallpaper view now records global/local mouse movement independently of the
+render cadence. A bounded 256-event queue feeds elapsed-time samples into the
+rope simulation, then rebuilds its geometry once per frame. This retains curved
+paths at low wallpaper frame rates without multiplying particle age or rebuilding
+SpriteKit segments for every mouse event. Pause/stop clear queued input, stale
+samples are discarded, and off-screen samples break the path. Reapplying an
+unchanged pause state no longer resets the scene's update clock.
+
+`run-scene-runtime-tests.sh` simulates ten cursor revolutions per second, 240 Hz
+mouse input and 30 fps drawing: frame-only sampling produces a maximum radial
+error around 74 scene units on a radius-180 circle, while event sampling stays
+below 3 (observed 0.77). It also verifies elapsed-time conservation, backlog
+bounds and stale-input removal. Hardware cursor feel still depends on the actual
+mouse event rate and configured wallpaper FPS.
