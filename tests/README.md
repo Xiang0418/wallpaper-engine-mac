@@ -33,3 +33,57 @@ Phase-one behavior:
 These automated checks do not establish pixel-perfect presentation, perceptually
 seamless video boundaries, or long-duration memory stability. Those need desktop
 visual/audio checks and a longer profiling session.
+
+## Per-wallpaper volume
+
+```sh
+bash tests/run-wallpaper-volume.sh '/path/to/3799672625'
+```
+
+The fixture argument is optional for volume tests. With it, the suite also checks
+that scene video and MP3 receive the same effective volume. Without it, it checks
+persistence, wallpaper identity/isolation, 0–100% limits, mute/unmute, video player
+rebinding, native menu slider actions and control synchronization. It renders the
+production controls in light/dark appearances to `/tmp/we-volume-light.png` and
+`/tmp/we-volume-dark.png` for visual inspection.
+
+Volumes are saved by standardized wallpaper directory. The same wallpaper on two
+screens shares its saved percentage. Different wallpapers retain independent
+percentages. The menu has a single overall-volume control;
+web wallpaper volume is not exposed because its playback adapter does not support
+volume control. Global mute silences all players without changing saved levels.
+
+Audio follows `CGMainDisplayID()` on display-configuration changes, independently
+of `selectedScreenId` used for wallpaper editing. Each display retains its own
+wallpaper. Only the system main display is audible; changing the system primary
+switches audio without changing any wallpaper assignment. A disabled main display
+has no audible session. Old manually saved audio-source preferences are ignored.
+Display changes reuse existing windows; removed/replaced screen sessions are
+explicitly stopped before teardown. The regression suite retains retired scene
+models, replaces the same screen repeatedly, sends stale wake events, and verifies
+single-source sound plus source switching/disconnect/reconnect behavior.
+
+The volume suite also copies an NSMenu containing the custom slider view (the
+previous crash path), checks that decoded controls bind to live volume, and tests
+independent wallpaper assignments while transferring sound between main displays.
+Dock menus are constructed afresh rather than copying live custom views.
+
+Application focus policies now gate playback without changing the user's manual
+pause or mute. Video, music and scripts pause together. System and display sleep
+are tracked independently, so one wake event cannot override the other sleep
+reason. Newly registered sessions inherit the current focus policy. Settings
+changes and audio ownership changes cannot bypass policy mute.
+
+Display assignments use persistent display UUIDs, with migration of connected
+screens' legacy numeric IDs. Disabled displays remain disabled on reconnect;
+newly discovered displays are enabled. Existing all-Spaces windows retain their
+players and script state across Spaces changes. Original desktop images are
+saved/restored per display; generated video placeholders only update matching
+assignments. A disconnected legacy display can only migrate when its old numeric
+ID can still be matched by macOS.
+
+Physical acceptance still required on the target machine: reconnect external
+monitors (including changed arrangement/scaling), drag across displays, switch
+Spaces/full-screen apps, close/open the lid, and run for several hours while
+monitoring memory. Automated tests simulate notifications and session replacement;
+they do not establish physical multi-display/Spaces or overnight stability.

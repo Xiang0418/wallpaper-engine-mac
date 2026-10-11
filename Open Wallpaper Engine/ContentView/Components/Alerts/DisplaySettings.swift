@@ -17,6 +17,7 @@ struct DisplaySettings: SubviewOfContentView {
     }
 
     var body: some View {
+        ScrollView {
         VStack(spacing: 16) {
             Button {
                 viewModel.isDisplaySettingsReveal = false
@@ -37,7 +38,15 @@ struct DisplaySettings: SubviewOfContentView {
 
             // Monitor layout
             MonitorLayoutView(wallpaperViewModel: wallpaperViewModel)
-                .frame(maxHeight: 200)
+                .frame(height: 160)
+
+            Picker("Configure Display", selection: $wallpaperViewModel.selectedScreenId) {
+                ForEach(NSScreen.screens, id: \.self) { screen in
+                    Text(screen.localizedName).tag(WallpaperViewModel.screenId(for: screen))
+                }
+            }
+
+            WallpaperAudioSourceControl(wallpaperViewModel: wallpaperViewModel)
 
             // Selected screen info
             if let screen = NSScreen.screens.first(where: { WallpaperViewModel.screenId(for: $0) == wallpaperViewModel.selectedScreenId }) {
@@ -79,12 +88,20 @@ struct DisplaySettings: SubviewOfContentView {
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
+                            Button("Choose Wallpaper") {
+                                viewModel.isDisplaySettingsReveal = false
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
                             Button("Remove") {
                                 wallpaperViewModel.wallpapers.removeValue(forKey: screenId)
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                             .disabled(wp.project == .invalid)
+                        }
+                        if WallpaperViewModel.supportsVolume(wp) {
+                            WallpaperVolumeControl(wallpaperViewModel: wallpaperViewModel, wallpaper: wp)
                         }
                     } else {
                         Text("Wallpaper display is disabled on this screen.")
@@ -100,6 +117,7 @@ struct DisplaySettings: SubviewOfContentView {
             Spacer()
         }
         .padding(.horizontal, 40)
+        }
     }
 
     private func previewURL(for wallpaper: WEWallpaper) -> URL {
@@ -145,7 +163,7 @@ private struct MonitorLayoutView: View {
                         wallpaperTitle: wallpaperViewModel.wallpaper(for: screenId).project.title,
                         isSelected: isSelected,
                         isEnabled: isEnabled,
-                        isMain: screen == .main
+                        isMain: screenId == WallpaperViewModel.mainScreenId()
                     )
                     .frame(width: w, height: h)
                     .position(x: x + w / 2 + (geo.size.width - bounds.width * scale) / 2,

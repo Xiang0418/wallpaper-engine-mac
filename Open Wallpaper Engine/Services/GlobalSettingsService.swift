@@ -110,7 +110,7 @@ struct GlobalSettings: Codable, Equatable {
 class GlobalSettingsViewModel: ObservableObject {
     @Published var settings: GlobalSettings
     {
-        didSet { save(); validate() }
+        didSet { save(); validate(); activateApplicationDidChange() }
     }
     
     @Published var selection = 0
@@ -153,9 +153,9 @@ class GlobalSettingsViewModel: ObservableObject {
         self.didCurrentWallpaperChangeCancellable =
         AppDelegate.shared.wallpaperViewModel.$wallpapers
             .sink { [weak self] wallpapers in
-                let mainId = WallpaperViewModel.mainScreenId()
-                if let wp = wallpapers[mainId] {
-                    self?.didCurrentWallpaperChange(wp)
+                // @Published emits before assignment; process against the new map on main.
+                DispatchQueue.main.async {
+                    for wallpaper in wallpapers.values { self?.didCurrentWallpaperChange(wallpaper) }
                 }
             }
         
@@ -169,10 +169,12 @@ class GlobalSettingsViewModel: ObservableObject {
         self.$settings
             .removeDuplicates { $0.adjustMenuBarTint == $1.adjustMenuBarTint }
             .map { $0.adjustMenuBarTint }
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.didChangeAdjustMenuBarTint($0) }
             
         
         self.validate()
+        activateApplicationDidChange()
     }
     
     func didAddToLoginItem(_ added: Bool) {
@@ -189,16 +191,10 @@ class GlobalSettingsViewModel: ObservableObject {
     }
     
     func didChangeAdjustMenuBarTint(_ newValue: Bool) {
-        if newValue != true {
-            if let wallpaper = UserDefaults.standard.url(forKey: "OSWallpaper") {
-                try? NSWorkspace.shared.setDesktopImageURL(wallpaper, for: .main!)
-            }
-        } else {
-            do {
-                let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appending(path: "staticWP_\(AppDelegate.shared.wallpaperViewModel.currentWallpaper.wallpaperDirectory.hashValue).tiff")
-                try NSWorkspace.shared.setDesktopImageURL(url, for: .main!)
-            } catch {
-                print(error)
+        if !newValue { AppDelegate.shared.restoreDesktopImages() }
+        else {
+            for wallpaper in AppDelegate.shared.wallpaperViewModel.wallpapers.values {
+                AppDelegate.shared.setPlacehoderWallpaper(with: wallpaper)
             }
         }
     }
@@ -262,40 +258,19 @@ class GlobalSettingsViewModel: ObservableObject {
     }
     
     func activateApplicationDidChange() {
-        guard let frontmostApplication = NSWorkspace.shared.frontmostApplication else { return }
-
-        switch frontmostApplication.bundleIdentifier {
-        case "com.apple.finder", Bundle.main.bundleIdentifier:
-            globalSettingsWhenApplicationDidBecomeActive()
-        default:
-            switch self.settings.otherApplicationFocused {
-            case .mute:
-                AppDelegate.shared.mute()
-            case .pause:
-                AppDelegate.shared.pause()
-            case .stop:
-                AppDelegate.shared.pause()
-                for window in AppDelegate.shared.wallpaperWindows.values { window.orderOut(nil) }
-            case .keepRunning:
-                break
-            }
+        guard let app = NSWorkspace.shared.frontmostApplication else { return }
+        let desktop = app.bundleIdentifier == "com.apple.finder" || app.bundleIdentifier == Bundle.main.bundleIdentifier
+        let policy = desktop ? GSPlayback.keepRunning : settings.otherApplicationFocused
+        WallpaperPlaybackSessions.shared.setPlaybackPolicy(paused: policy == .pause || policy == .stop,
+                                                           muted: policy == .mute || !settings.audioOutput)
+        for window in AppDelegate.shared.wallpaperWindows.values {
+            if policy == .stop { window.orderOut(nil) }
+            else { window.orderFront(nil) }
         }
     }
 
-    func globalSettingsWhenApplicationDidBecomeActive() {
-        switch self.settings.otherApplicationFocused {
-        case .mute:
-            AppDelegate.shared.unmute()
-        case .pause:
-            AppDelegate.shared.resume()
-        case .stop:
-            AppDelegate.shared.resume()
-            for window in AppDelegate.shared.wallpaperWindows.values { window.orderFront(nil) }
-        case .keepRunning:
-            break
-        }
-    }
-    
+    func globalSettingsWhenApplicationDidBecomeActive() { activateApplicationDidChange() }
+
     private func saveAndValidate() {
         save()
         validate()

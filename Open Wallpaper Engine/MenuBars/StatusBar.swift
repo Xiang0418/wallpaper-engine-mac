@@ -63,7 +63,25 @@ extension AppDelegate {
         return menu
     }
 
-    func setStatusMenu() {
+    private func refreshWallpaperVolumeItems(in menu: NSMenu) {
+        let tag = 7301
+        for item in menu.items where item.tag == tag { menu.removeItem(item) }
+        guard let muteIndex = menu.items.firstIndex(where: {
+            $0.action == #selector(mute) || $0.action == #selector(unmute)
+        }) else { return }
+        let item = NSMenuItem()
+        item.tag = tag
+        let sourceName = NSScreen.screens.first {
+            WallpaperViewModel.screenId(for: $0) == wallpaperViewModel.audioSourceScreenId
+        }?.localizedName ?? String(localized: "Selected display disconnected")
+        item.view = WallpaperVolumeMenuView(model: wallpaperViewModel, screenName: sourceName)
+        menu.insertItem(item, at: muteIndex)
+        let separator = NSMenuItem.separator()
+        separator.tag = tag
+        menu.insertItem(separator, at: muteIndex + 1)
+    }
+
+    func makeStatusMenu() -> NSMenu {
         // Recent Wallpapers Submenu
         let recentWallpapersMenuItem = NSMenuItem(title: String(localized: "Recent Wallpapers"), action: nil, keyEquivalent: "")
         recentWallpapersMenuItem.submenu = buildRecentWallpapersMenu()
@@ -115,6 +133,21 @@ extension AppDelegate {
                   keyEquivalent: "q")
         ]
 
+        refreshWallpaperVolumeItems(in: menu)
+
+        if let muteItem = menu.items.first(where: { $0.action == #selector(mute) }), wallpaperViewModel.playVolume == 0 {
+            muteItem.title = String(localized: "Unmute")
+            muteItem.action = #selector(unmute)
+        }
+        if let pauseItem = menu.items.first(where: { $0.action == #selector(pause) }), wallpaperViewModel.playRate == 0 {
+            pauseItem.title = String(localized: "Resume")
+            pauseItem.action = #selector(resume)
+        }
+        return menu
+    }
+
+    func setStatusMenu() {
+        let menu = makeStatusMenu()
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.statusItem.menu = menu
 
@@ -133,6 +166,7 @@ extension AppDelegate {
 
 extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
+        refreshWallpaperVolumeItems(in: menu)
         // Update the Recent Wallpapers submenu each time the status bar menu opens
         if let recentItem = menu.items.first(where: { $0.title == String(localized: "Recent Wallpapers") }) {
             recentItem.submenu = buildRecentWallpapersMenu()

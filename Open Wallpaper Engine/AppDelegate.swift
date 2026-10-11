@@ -18,6 +18,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var mainWindowController: MainWindowController!
     
     var wallpaperWindows: [String: NSWindow] = [:]
+    private var connectedScreenIds = Set<String>()
+    private var knownScreenIds = Set(UserDefaults.standard.stringArray(forKey: "KnownWallpaperScreens") ?? [])
     
     var contentViewModel = ContentViewModel()
     var wallpaperViewModel = WallpaperViewModel()
@@ -42,6 +44,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             name: NSApplication.didChangeScreenParametersNotification, object: nil
         )
         
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(activeSpaceChanged),
+            name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
+
         // 创建化左上角菜单栏
         setMainMenu()
         
@@ -56,8 +61,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
-        let dockMenu = self.statusItem.menu?.copy() as! NSMenu?
-        dockMenu?.items.removeLast() // Remove `Quit` menu item
+        let dockMenu = makeStatusMenu()
+        dockMenu.items.removeLast() // Remove `Quit` menu item
         return dockMenu
     }
     
@@ -90,12 +95,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func applicationWillTerminate(_ notification: Notification) {
-        if let wallpaper = UserDefaults.standard.url(forKey: "OSWallpaper") {
-            for screen in NSScreen.screens {
-                try? NSWorkspace.shared.setDesktopImageURL(wallpaper, for: screen)
-            }
-        }
-        
+        for id in wallpaperWindows.keys { WallpaperPlaybackSessions.shared.stop(screenId: id) }
+        if let eventHandler { NSEvent.removeMonitor(eventHandler) }
+        restoreDesktopImages()
+
         let cacheDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         do {
             let filesURL = try FileManager.default.contentsOfDirectory(at: cacheDirectory,
@@ -154,10 +157,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
 // MARK: Set Wallpaper Windows - One per screen
     func setWallpaperWindows() {
+        connectedScreenIds = Set(NSScreen.screens.map { WallpaperViewModel.screenId(for: $0) })
+        if !knownScreenIds.isEmpty { wallpaperViewModel.enabledScreens.formUnion(connectedScreenIds.subtracting(knownScreenIds)) }
+        knownScreenIds.formUnion(connectedScreenIds)
+        UserDefaults.standard.set(Array(knownScreenIds), forKey: "KnownWallpaperScreens")
         for screen in NSScreen.screens {
             let screenId = WallpaperViewModel.screenId(for: screen)
             guard wallpaperViewModel.isScreenEnabled(screenId) else { continue }
 
+            if let window = wallpaperWindows[screenId] {
+                window.setFrame(screen.frame, display: true)
+                continue
+            }
             let window = WallpaperWindow()
             window.styleMask = [.borderless, .fullSizeContentView]
             window.level = NSWindow.Level(Int(CGWindowLevelForKey(.desktopWindow)))
@@ -179,21 +190,39 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     /// Rebuild wallpaper windows without changing enabled state.
     func rebuildWallpaperWindows() {
-        for (_, window) in wallpaperWindows { window.close() }
-        wallpaperWindows.removeAll()
+        let active = Set(NSScreen.screens.map { WallpaperViewModel.screenId(for: $0) })
+            .intersection(wallpaperViewModel.enabledScreens)
+        for id in Array(wallpaperWindows.keys) where !active.contains(id) {
+            WallpaperPlaybackSessions.shared.stop(screenId: id)
+            if let window = wallpaperWindows.removeValue(forKey: id) {
+                window.contentView = nil
+                window.close()
+            }
+        }
         setWallpaperWindows()
         for (_, window) in wallpaperWindows { window.orderFront(nil) }
+        globalSettingsViewModel.activateApplicationDidChange()
     }
 
     /// Called when monitors connect/disconnect — auto-enables newly connected screens.
     @objc func screensChanged() {
+        saveCurrentWallpaper()
+        wallpaperViewModel.updateMainDisplayAudioSource()
         let connectedIds = Set(NSScreen.screens.map { WallpaperViewModel.screenId(for: $0) })
-        for id in connectedIds where !wallpaperViewModel.enabledScreens.contains(id) {
+        for id in connectedIds.subtracting(knownScreenIds) {
             wallpaperViewModel.enabledScreens.insert(id)
+        }
+        if !connectedIds.contains(wallpaperViewModel.selectedScreenId) {
+            wallpaperViewModel.selectedScreenId = WallpaperViewModel.mainScreenId()
         }
         rebuildWallpaperWindows()
     }
     
+    @objc func activeSpaceChanged() {
+        // Existing all-Spaces windows keep their sessions and script state.
+        globalSettingsViewModel.activateApplicationDidChange()
+    }
+
     func windowWillClose(_ notification: Notification) {
         globalSettingsViewModel.reset()
     }
@@ -238,22 +267,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func saveCurrentWallpaper() {
-        guard let mainScreen = NSScreen.main else { return }
-        var wallpaper: URL {
-            var osWallpaper: URL { NSWorkspace.shared.desktopImageURL(for: mainScreen)! }
-            if let wallpaper = UserDefaults.standard.url(forKey: "OSWallpaper") {
-                if wallpaper != osWallpaper {
-                    if !wallpaper.lastPathComponent.contains("staticWP") {
-                        return wallpaper
-                    }
-                }
-            }
-            return osWallpaper
+        var saved = UserDefaults.standard.dictionary(forKey: "OSWallpapersByDisplay") as? [String: String] ?? [:]
+        for screen in NSScreen.screens {
+            guard let url = NSWorkspace.shared.desktopImageURL(for: screen), !url.lastPathComponent.hasPrefix("staticWP_") else { continue }
+            saved[WallpaperViewModel.screenId(for: screen)] = url.absoluteString
         }
-        UserDefaults.standard.set(wallpaper, forKey: "OSWallpaper")
+        UserDefaults.standard.set(saved, forKey: "OSWallpapersByDisplay")
     }
-    
+
+    func restoreDesktopImages() {
+        let saved = UserDefaults.standard.dictionary(forKey: "OSWallpapersByDisplay") as? [String: String] ?? [:]
+        for screen in NSScreen.screens {
+            let url = saved[WallpaperViewModel.screenId(for: screen)].flatMap(URL.init(string:))
+                ?? UserDefaults.standard.url(forKey: "OSWallpaper")
+            if let url { try? NSWorkspace.shared.setDesktopImageURL(url, for: screen) }
+        }
+    }
+
     func setPlacehoderWallpaper(with wallpaper: WEWallpaper) {
+        guard globalSettingsViewModel.settings.adjustMenuBarTint else { return }
         switch wallpaper.project.type {
         case "video":
             let asset = AVAsset(url: wallpaper.wallpaperDirectory.appending(component: wallpaper.project.file))
@@ -270,8 +302,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         do {
                             let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appending(path: "staticWP_\(wallpaper.wallpaperDirectory.hashValue).tiff")
                             try data.write(to: url, options: .atomic)
-                            for screen in NSScreen.screens {
-                                try NSWorkspace.shared.setDesktopImageURL(url, for: screen)
+                            DispatchQueue.main.async { [weak self] in
+                                guard let self, self.globalSettingsViewModel.settings.adjustMenuBarTint else { return }
+                                for screen in NSScreen.screens {
+                                    let id = WallpaperViewModel.screenId(for: screen)
+                                    guard self.wallpaperViewModel.isScreenEnabled(id),
+                                          self.wallpaperViewModel.wallpaper(for: id).wallpaperDirectory == wallpaper.wallpaperDirectory else { continue }
+                                    try? NSWorkspace.shared.setDesktopImageURL(url, for: screen)
+                                }
                             }
                         } catch {
                             print(error)
