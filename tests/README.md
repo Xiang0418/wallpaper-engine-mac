@@ -169,7 +169,8 @@ Audio analysis reads bounded 1024-sample PCM windows on a worker queue at the
 existing AVAudioPlayer's current time. It does not open a second playback engine.
 The existing main-display audio owner, volume, mute, pause and independent looping
 remain in control. Spectrum currently mixes channels to mono and covers package
-music, not video soundtracks or other applications' system audio. The rope trail
+music, not video soundtracks. The optional external-player integration described
+below adds a separate system-audio source. The rope trail
 implements the fixture's rate, velocity, lifetime, color and sizechange operator,
 with a bounded particle count and per-segment age-based width.
 
@@ -318,3 +319,79 @@ synthetic TEXS containers, reject truncation/nonfinite coordinates, check LZ4 an
 BC3 decoding, and verify actual GPU atlas colors and Scroll+opacity output.
 Run the existing rendering, playback, volume and runtime suites against the local
 3799672625 fixture to check the original wallpaper's behavior.
+
+## External players: artwork and system-audio spectrum
+
+Enable the two independent switches under Settings → General → Other Media
+Players. Both default to off. Preferences are stored independently of the legacy
+GlobalSettings JSON. The switches apply to scene wallpapers; web/video wallpaper
+media integration is outside this implementation.
+
+- Artwork follows the macOS Control Center player, including Chrome/YouTube when
+  it publishes artwork. The renderer recognizes the albedo `$mediaThumbnail`
+  system binding in a material or instance override. It crops to the authored
+  aspect ratio, retains effects/masks/transforms, and restores the packaged image
+  when disabled, the player disappears, artwork is missing, or the bridge fails.
+  A paused player retains its cover. This is not a screenshot of the player.
+- Artwork uses the pinned BSD-3-Clause MediaRemoteAdapter source in `Vendor/`.
+  Xcode compiles and bundles it locally; no runtime downloads. The read-only
+  stream command is used. Private MediaRemote access can break after macOS
+  updates and is unsuitable for an App Store build. Errors expose a retry action;
+  the wallpaper continues using its original artwork.
+- ScreenCaptureKit supplies audio from all other apps (not just the selected
+  Control Center player). No screen output is registered, no microphone is
+  captured, and no audio is stored. macOS Screen & System Audio Recording
+  permission is required. After granting permission, retry; relaunch if macOS
+  requests it. Protected content may not supply capturable audio.
+- System audio replaces the package-music spectrum while enabled, even when
+  access fails (silence is shown). Disable it to restore the package analyzer.
+  This does not mute the wallpaper's own music; its volume remains independent.
+- One bridge and one capture stream are shared across displays. All scene
+  consumers paused/stopped or system sleep releases them; resume reconnects.
+  A stalled audio callback expires in 300 ms. Revocation/capture errors display a
+  status and require retry, avoiding repeated permission requests.
+
+Automated checks (no recording permission required):
+
+```sh
+bash tests/run-external-media.sh
+bash tests/run-media-settings-ui.sh
+bash tests/run-scene-rendering.sh '/path/to/3799672625'
+```
+
+These exercise opt-in defaults, shared resource ownership, pause/resume/retry,
+preference persistence, artwork replacement/reset, bounded image decoding,
+invalid JSON, wide-image cropping, real PCM FFT, antiphase stereo, planar and
+interleaved CoreMedia conversion, silence expiry, and the original fixture's GPU
+cover mask with a replacement image. UI snapshots are written to
+`/tmp/we-media-settings-{light,dark}.png` for visual inspection.
+
+Optional live integration test, with an actual Control Center player and artwork:
+
+```sh
+bash tests/run-external-media.sh --live-now-playing
+```
+
+This builds a temporary app bundle and checks the production Swift reader plus
+bundled adapter deliver decoded artwork. It reads no screen pixels and sends no
+playback commands. Live ScreenCaptureKit still needs manual verification in the
+built app: grant permission, play/pause Chrome YouTube, switch songs/players,
+check silence/revocation/retry, and pause/resume/sleep with multiple displays.
+
+### Bridge build sandbox regression
+
+Validate from a fresh DerivedData directory outside `/tmp`, since temporary-path
+access can mask missing Xcode script output declarations:
+
+```sh
+xcodebuild -project 'Open Wallpaper Engine.xcodeproj' \
+  -scheme 'Open Wallpaper Engine' -configuration Debug \
+  -derivedDataPath build/media-sandbox-validation \
+  ENABLE_USER_SCRIPT_SANDBOXING=YES CODE_SIGNING_ALLOWED=NO build
+```
+
+The bridge compiles/signs in `TEMP_DIR`, then copies the signed files to exact
+paths declared in `scripts/media-bridge-outputs.xcfilelist`. Keep that list in
+sync when changing the bundle layout; a directory output alone does not grant
+recursive write access. Verify the copied framework with `codesign --verify
+--strict` as well.
