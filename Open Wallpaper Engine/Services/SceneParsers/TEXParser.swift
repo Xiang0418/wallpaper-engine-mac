@@ -4,7 +4,7 @@
 //
 //  Parse Wallpaper Engine TEXV texture container files.
 //  Structure: TEXV0005 > TEXI (metadata) > TEXB (image data).
-//  Currently supports JPEG (format 0) extraction only.
+//  Supports embedded JPEG/PNG images and MP4 video textures.
 //
 
 import Cocoa
@@ -22,12 +22,46 @@ class TEXParser {
     private let data: Data
 
     init(data: Data) {
-        self.data = data
+        self.data = Data(data)
+    }
+
+    /// Read the first uncompressed mip payload of a TEXB0004 video texture.
+    /// Validate the MP4 file-type box rather than scanning compressed pixels for magic bytes.
+    func extractVideoData() -> Data? {
+        let marker = Data("TEXB0004\0".utf8)
+        guard let section = data.range(of: marker) else { return nil }
+        var cursor = section.upperBound
+        func readUInt32() -> UInt32? {
+            guard cursor + 4 <= data.endIndex else { return nil }
+            let value = UInt32(data[cursor]) | (UInt32(data[cursor + 1]) << 8)
+                | (UInt32(data[cursor + 2]) << 16) | (UInt32(data[cursor + 3]) << 24)
+            cursor += 4
+            return value
+        }
+        guard let textureCount = readUInt32(), textureCount > 0,
+              readUInt32() != nil, // source image format
+              readUInt32() != nil, // TEXB0004 extra field
+              let mipCount = readUInt32(), mipCount > 0,
+              let width = readUInt32(), width > 0,
+              let height = readUInt32(), height > 0,
+              let compression = readUInt32(), compression == 0,
+              readUInt32() != nil, // uncompressed size (zero for encoded media)
+              let payloadSize = readUInt32(), payloadSize >= 12,
+              Int(payloadSize) <= data.endIndex - cursor else { return nil }
+        let payload = Data(data[cursor..<cursor + Int(payloadSize)])
+        guard payload[4..<8] == Data("ftyp".utf8) else { return nil }
+        let boxSize = payload.prefix(4).reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+        guard boxSize >= 12, boxSize <= payloadSize else { return nil }
+        let brand = String(data: payload[8..<12], encoding: .ascii)
+        guard ["isom", "iso2", "mp41", "mp42", "avc1", "M4V "].contains(brand) else { return nil }
+        return payload
     }
 
     /// Extract the image from this TEX container.
     /// Returns nil if the format is unsupported (e.g. DXT).
     func extractImage() -> NSImage? {
+        // Video data can contain incidental JPEG markers that are not image resources.
+        guard extractVideoData() == nil else { return nil }
         // Check TEXI format — format 4+ is DXT compressed (4=DXT1, 8=DXT5)
         let texiMeta = readTEXIMetadata()
         if let meta = texiMeta, meta.format >= 4 {
@@ -89,6 +123,7 @@ class TEXParser {
 
     /// Extract raw JPEG/PNG data without creating NSImage
     func extractImageData() -> Data? {
+        guard extractVideoData() == nil else { return nil }
         guard let texbRange = findSection("TEXB") else { return nil }
         let texbData = data[texbRange]
 
