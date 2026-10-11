@@ -73,7 +73,7 @@ final class AppDelegate {
 
         check(abs(layer(425).xScale - 1.2) < 0.0001 && (layer(425).children.first as? SKSpriteNode)?.blendMode == .add, "Flare scale and additive blending")
         check(layer(529).children.first is SKSpriteNode && (layer(529).children.first as? SKSpriteNode)?.shader != nil, "Cover mask shader is attached")
-        check(model.renderingWarnings.count == 1, "No missing materials, effects, textures or fonts")
+        check(model.renderingWarnings.isEmpty, "No missing materials, effects, textures or fonts")
         let view = SKView(frame: NSRect(x: 0, y: 0, width: 1920, height: 1080))
         view.ignoresSiblingOrder = false
         let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
@@ -98,10 +98,39 @@ final class AppDelegate {
             check(center > 0.9 && corner < 0.1, "GPU cover mask preserves center and removes corners")
         } else { fatalError("Cannot render cover mask") }
 
-        // Force dock layers visible solely in this test to compile and inspect frame effects.
-        layer(146).isHidden = false; layer(147).isHidden = false; layer(151).isHidden = false
+        let interactive = scene as! InteractiveWallpaperScene
+        let runtime = interactive.scriptRuntime!
+        runtime.applyUserProperties(["appdockenabled":true,"appdockenable1":true,"appdockenable15":true])
+        for _ in 0..<60 { runtime.update(delta:1.0/60,cursor:CGPoint(x:960,y:80)) }
+        check(runtime.diagnostics.isEmpty,"Original scripts run against phase-two nodes without exceptions")
+        check(!layer(146).isHidden && !layer(155).isHidden,"User properties enable the real dock containers")
+        let clockText=(layer(548).children.first as! SKLabelNode).attributedText!.string
+        check(clockText.count == 2 && Int(clockText) != nil,"Live seconds preserve attributed packaged font")
+        let launcher=layer(155).children.first as! SKSpriteNode
+        let originalIcon=launcher.texture
+        runtime.applyUserProperties(["launcher1":fixture.appendingPathComponent("project.json").path])
+        check(launcher.texture !== originalIcon,"Local shortcut uses the native macOS file/application icon")
+        runtime.applyUserProperties(["launcher1":""])
+        check(launcher.texture === originalIcon,"Clearing shortcut restores the package icon")
+        let hit=launcher.convert(CGPoint(x:0,y:launcher.size.height*0.5),to:scene)
+        var launches=0
+        runtime.openShortcut={ _ in launches += 1 }
+        runtime.applyUserProperties(["launcher1":"https://example.com"])
+        runtime.mouseDown(at:hit);runtime.mouseUp(at:hit)
+        check(launches == 1,"Actual transformed launcher dispatches one shortcut click")
+        let previousY=layer(155).position.y
+        for _ in 0..<5 { runtime.update(delta:1.0/60,cursor:hit) }
+        check(layer(155).position.y != previousY,"Click starts original launcher bounce animation")
+        let spectrum=layer(509).children.compactMap { $0 as? SKSpriteNode }.first!
+        let shader=spectrum.shader!
+        func spectrumPixels(_ value:Float) -> Data {
+            shader.uniformNamed("u_audioSpectrum")!.textureValue=SceneSpectrumTexture.texture(Array(repeating:value,count:64))
+            let texture=view.texture(from:spectrum,crop:CGRect(x:-100,y:-100,width:200,height:200))!
+            return texture.cgImage().dataProvider!.data! as Data
+        }
+        check(spectrumPixels(0) != spectrumPixels(0.8),"Integrated spectrum shader pixels respond to frequency data")
         if let texture = view.texture(from: scene) {
-            try NSBitmapImageRep(cgImage: texture.cgImage()).representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "/tmp/we-phase2-dock.png"))
+            try NSBitmapImageRep(cgImage: texture.cgImage()).representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "/tmp/we-phase3-integrated.png"))
         }
         model.stop()
         print("All phase-two rendering checks passed")

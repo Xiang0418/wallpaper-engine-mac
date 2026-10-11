@@ -30,6 +30,8 @@ class SceneWallpaperViewModel: ObservableObject {
     private var textureCache: [String: NSImage] = [:]
     private(set) var renderingWarnings: [String] = []
     private var pkgParser: PKGParser?
+    private var rawObjects: [[String: Any]] = []
+    private var spectrumSources: [SceneAudioSpectrumSource?] = []
     private var videoPlayer: AVQueuePlayer?
     private var videoLooper: AVPlayerLooper?
     private var videoOutput: AVPlayerItemVideoOutput?
@@ -45,6 +47,9 @@ class SceneWallpaperViewModel: ObservableObject {
     private weak var errorNode: SKLabelNode?
 
     func stop() {
+        (skScene as? InteractiveWallpaperScene)?.stop()
+        spectrumSources.forEach { $0?.stop() }; spectrumSources.removeAll()
+        rawObjects.removeAll()
         readinessTimer?.invalidate()
         readinessTimer = nil
         videoPlayer?.pause()
@@ -175,6 +180,10 @@ class SceneWallpaperViewModel: ObservableObject {
             return
         }
 
+        if let data = assetData(sceneFile, wallpaperDir: dir),
+           let raw = try? JSONSerialization.jsonObject(with:data) as? [String:Any] {
+            rawObjects = raw["objects"] as? [[String:Any]] ?? []
+        }
         Self.log("Scene loaded: \(scene.objects.count) objects from \(sceneFile)")
         let skScene = buildSKScene(from: scene, wallpaperDir: dir)
         Self.log("SKScene built: \(skScene.children.count) children")
@@ -187,7 +196,7 @@ class SceneWallpaperViewModel: ObservableObject {
 
     private func buildSKScene(from scene: WEScene, wallpaperDir: URL) -> SKScene {
         let projection = scene.general.orthogonalprojection ?? WEOrthogonalProjection(width: 1920, height: 1080)
-        let skScene = SKScene(size: CGSize(width: projection.width, height: projection.height))
+        let skScene = InteractiveWallpaperScene(size: CGSize(width: projection.width, height: projection.height))
         skScene.scaleMode = .aspectFill
 
         let camera = SKCameraNode()
@@ -274,6 +283,32 @@ class SceneWallpaperViewModel: ObservableObject {
         if backgroundIndex == nil { reportFailure("Scene contains no supported background") }
         // Orthographic export coordinates are canvas coordinates; camera.eye/center are
         // editor navigation state, not a runtime offset for these 2D scene exports.
+        let nodes = Dictionary(uniqueKeysWithValues: indices.map { ($0.key, containers[$0.value]) })
+        let contentNodes = nodes.compactMapValues { $0.children.first { $0 is SKSpriteNode || $0 is SKLabelNode || $0 is SKVideoNode } }
+        var properties: [String:Any] = [:]
+        if let data = try? Data(contentsOf:wallpaperDir.appendingPathComponent("project.json")),
+           let project = try? JSONSerialization.jsonObject(with:data) as? [String:Any],
+           let general = project["general"] as? [String:Any], let definitions = general["properties"] as? [String:[String:Any]] {
+            for (key,definition) in definitions { properties[key] = definition["value"] }
+        }
+        skScene.install(objects:rawObjects,nodes:nodes,contentNodes:contentNodes,properties:properties,
+                        storageKey:wallpaperDir.standardizedFileURL.path) { [weak self] path in
+            self?.assetData(path,wallpaperDir:wallpaperDir)
+        }
+        skScene.effectsDidUpdate = { id, effects in
+            guard let sprite = contentNodes[id] as? SKSpriteNode else { return }
+            Self.updateEffectUniforms(sprite,effects:effects)
+        }
+        skScene.spectrumProvider = { [weak self] in
+            guard let self else { return Array(repeating:0,count:64) }
+            var mixed = [Float](repeating:0,count:64)
+            for (index,source) in self.spectrumSources.enumerated() where index < self.audioPlayers.count {
+                let player = self.audioPlayers[index].0
+                let bins = source?.snapshot(at:player.currentTime,volume:player.volume,playing:player.isPlaying) ?? Array(repeating:0,count:64)
+                for i in 0..<64 { mixed[i] = min(1,mixed[i]+bins[i]) }
+            }
+            return mixed
+        }
         return skScene
     }
 
@@ -377,10 +412,12 @@ class SceneWallpaperViewModel: ObservableObject {
                     throw CocoaError(.fileReadNoSuchFile)
                 }
                 let url = try mediaURL(data: data, extension: (path as NSString).pathExtension)
+                let source = try? SceneAudioSpectrumSource(url:url)
                 let player = try AVAudioPlayer(contentsOf: url)
                 player.numberOfLoops = object.playbackmode == "loop" ? -1 : 0
                 player.enableRate = true
                 player.prepareToPlay()
+                spectrumSources.append(source)
                 audioPlayers.append((player, Float(min(1, max(0, object.volume ?? 1)))))
             } catch {
                 let message = "Audio unavailable (" + path + "): " + error.localizedDescription
@@ -807,29 +844,43 @@ extension SceneWallpaperViewModel {
     /// Explicit ports of the effects used by fixture 3799672625, composed in file order.
     /// Unknown shaders are diagnosed; this is not a general GLSL translator.
     private func applyEffects(_ object: WESceneObject, to node: SKSpriteNode, wallpaperDir: URL) {
-        let effects = (object.effects ?? []).filter { $0.visible?.bool != false }
+        let effects = object.effects ?? []
         guard !effects.isEmpty || object.brightness != nil else { return }
         let tint = (object.color ?? "1 1 1").parseColor()
-        var source = "vec4 result = texture2D(u_texture, uv); if (result.a > 0.0) result.rgb /= result.a; result.rgb *= vec3(\(tint.r), \(tint.g), \(tint.b)) * \(object.brightness ?? 1);\n"
-        var uniforms: [SKUniform] = []
+        var source = "vec4 result = texture2D(u_texture, uv); if (result.a > 0.0) result.rgb /= result.a; result.rgb *= u_layerTint * \(object.brightness ?? 1);\n"
+        var uniforms: [SKUniform] = [SKUniform(name:"u_layerTint",vectorFloat3:SIMD3(Float(tint.r),Float(tint.g),Float(tint.b))),
+                                      SKUniform(name:"u_layerScale",vectorFloat2:SIMD2(1,1))]
+        var bindings: [[String:Any]] = []
+        var names = Set<String>()
         var step = 0
-        for effect in effects {
+        for (effectIndex,effect) in effects.enumerated() {
             let key = URL(fileURLWithPath: effect.file).deletingLastPathComponent().lastPathComponent
             let pass = effect.passes?.first
             let values = pass?.constantshadervalues ?? [:]
-            func n(_ key: String, _ fallback: Double) -> String {
-                let value = values[key]?.number ?? fallback
-                return String(value.isFinite ? value : fallback)
-            }
-            func v(_ key: String, _ fallback: String, _ count: Int) -> String {
-                let numbers = (values[key]?.string ?? fallback).split(separator: " ").compactMap { Double($0) }
-                let defaults = fallback.split(separator: " ").compactMap { Double($0) }
-                let safe = (0..<count).map { i -> String in
-                    let value = i < numbers.count ? numbers[i] : defaults[i]
-                    return String(value.isFinite ? value : defaults[i])
+            func uniformName(_ key:String) -> String { "p\(effectIndex)_" + key.utf8.map { String(format:"%02x",$0) }.joined() }
+            func n(_ key:String,_ fallback:Double) -> String {
+                let name=uniformName(key)
+                if names.insert(name).inserted {
+                    let value=values[key]?.number ?? fallback
+                    uniforms.append(SKUniform(name:name,float:Float(value.isFinite ? value : fallback)))
+                    bindings.append(["name":name,"effect":effectIndex,"key":key,"count":1])
                 }
-                return "vec\(count)(" + safe.joined(separator: ",") + ")"
+                return name
             }
+            func v(_ key:String,_ fallback:String,_ count:Int) -> String {
+                let name=uniformName(key)
+                if names.insert(name).inserted {
+                    let numbers=(values[key]?.string ?? fallback).split(separator:" ").compactMap { Float($0) }
+                    let defaults=fallback.split(separator:" ").compactMap { Float($0) }
+                    let safe=(0..<count).map { i in i < numbers.count && numbers[i].isFinite ? numbers[i] : defaults[i] }
+                    uniforms.append(count == 2 ? SKUniform(name:name,vectorFloat2:SIMD2(safe[0],safe[1])) : SKUniform(name:name,vectorFloat3:SIMD3(safe[0],safe[1],safe[2])))
+                    bindings.append(["name":name,"effect":effectIndex,"key":key,"count":count])
+                }
+                return name
+            }
+            let enabledName="effectEnabled\(effectIndex)"
+            uniforms.append(SKUniform(name:enabledName,float:effect.visible?.bool == false ? 0 : 1))
+            bindings.append(["name":enabledName,"effect":effectIndex,"key":"visible","count":0])
             let previous = "effect\(step)"
             var body = ""
             switch key {
@@ -860,14 +911,17 @@ extension SceneWallpaperViewModel {
                 return mix(\(previous)(uv), \(previous)(fract(p + center)), mask);
                 """
             case "video":
-                // Zero-input output of the supplied 64-band shader. Audio data is phase 3.
-                warn("Audio spectrum uses zero input until phase three")
+                uniforms.append(SKUniform(name:"u_audioSpectrum",texture:SceneSpectrumTexture.texture(Array(repeating:0,count:64))))
                 body = """
                 vec2 p = uv - 0.5; float coverage = 0.0;
                 for (int i = 0; i < 64; i++) {
                     float t = 6.28318530718 * float(i) / 64.0;
-                    vec2 center = \(n("R", 0.3)) * vec2(sin(t), cos(t));
-                    coverage = max(coverage, 1.0 - step(0.004, length(p - center)));
+                    vec2 direction = vec2(sin(t), cos(t));
+                    float height = texture2D(u_audioSpectrum, vec2((float(i)+0.5)/64.0,0.5)).r * \(n("Sound Strength",0.1));
+                    float along = dot(p,direction)-\(n("R",0.3));
+                    float across = dot(p,vec2(direction.y,-direction.x));
+                    float distance = length(vec2(across,max(abs(along)-height,0.0)))-0.004;
+                    coverage = max(coverage,1.0-smoothstep(-0.001,0.001,distance));
                 }
                 return vec4(\(v("color", "1 1 1", 3)) * coverage, 1.0);
                 """
@@ -882,11 +936,10 @@ extension SceneWallpaperViewModel {
                 guard (pass?.combos?["TYPE"] ?? 0) == 0 else {
                     warn("Unsupported frame shape: " + effect.file); continue
                 }
-                let scale = (object.scale ?? "1 1 1").parseVector3()
                 body = """
                 vec4 pix = \(previous)(uv);
                 vec2 res = \(v("Reference resolution", "512 512", 2));
-                vec2 scale = vec2(\(abs(scale.0)), \(abs(scale.1)));
+                vec2 scale = abs(u_layerScale);
                 float softness = max(0.00001, \(n("ui_settings_gfx_antialiasing", 1)));
                 float thickness = \(n("Thickness", 0.1)) * res.x * 0.05;
                 float notchSize = max(0.000001, \(n("Notch size", 0.5)) * res.x * 0.2) * 1.41421356237;
@@ -927,11 +980,32 @@ extension SceneWallpaperViewModel {
                     .replacingOccurrences(of: "return ", with: "result = ")
             }
             step += 1
-            source += "{ \(body) }\n"
+            source += "{ if (\(enabledName) > 0.5) { \(body) } }\n"
         }
         // SpriteKit consumes premultiplied output. Preserve the layer's tint and alpha.
         source = "void main() { vec2 uv = v_tex_coord; " + source
             + " vec4 c = result; c.rgb *= c.a; gl_FragColor = c * v_color_mix.a; }"
         node.shader = SKShader(source: source, uniforms: uniforms)
+        node.userData = node.userData ?? NSMutableDictionary()
+        node.userData?["effectBindings"] = bindings
     }
+    private static func updateEffectUniforms(_ node:SKSpriteNode,effects:[[String:Any]]) {
+        node.shader?.uniformNamed("u_layerScale")?.vectorFloat2Value = SIMD2(Float(node.parent?.xScale ?? 1),Float(node.parent?.yScale ?? 1))
+        for binding in node.userData?["effectBindings"] as? [[String:Any]] ?? [] {
+            guard let name=binding["name"] as? String,let index=binding["effect"] as? Int,index < effects.count,
+                  let key=binding["key"] as? String,let count=binding["count"] as? Int,let uniform=node.shader?.uniformNamed(name) else { continue }
+            if count == 0 { uniform.floatValue = effects[index]["visible"] as? Bool == false ? 0 : 1;continue }
+            let passes=effects[index]["passes"] as? [[String:Any]] ?? []
+            let raw=(passes.first?["constantshadervalues"] as? [String:Any])?[key]
+            if count == 1,let number=raw as? NSNumber,number.floatValue.isFinite { uniform.floatValue=number.floatValue;continue }
+            var numbers:[Float] = []
+            if let value=raw as? String { numbers=value.split(separator:" ").compactMap { Float($0) } }
+            if let value=raw as? [String:NSNumber] { numbers=["x","y","z"].compactMap { value[$0]?.floatValue } }
+            if numbers.count >= count && numbers.allSatisfy({$0.isFinite}) {
+                if count == 2 { uniform.vectorFloat2Value=SIMD2(numbers[0],numbers[1]) }
+                if count == 3 { uniform.vectorFloat3Value=SIMD3(numbers[0],numbers[1],numbers[2]) }
+            }
+        }
+    }
+
 }
