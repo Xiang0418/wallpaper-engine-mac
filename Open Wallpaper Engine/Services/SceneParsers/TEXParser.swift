@@ -2,6 +2,13 @@ import Cocoa
 import Foundation
 
 /// TEXV0005 containers. TEXI dimensions are allocated size followed by content size.
+struct TEXAnimation {
+    struct Frame { let imageIndex: Int; let rect: CGRect; let size: CGSize; let duration: Double }
+    let images: [NSImage]
+    let nearestFiltering: Bool
+    let frames: [Frame]
+}
+
 final class TEXParser {
     private let data: Data
     init(data: Data) { self.data = Data(data) }
@@ -116,6 +123,10 @@ final class TEXParser {
 
     func extractImage() -> NSImage? {
         guard extractVideoData() == nil, let mip = firstMip() else { return nil }
+        return image(from: mip)
+    }
+
+    private func image(from mip: Mip) -> NSImage? {
         if mip.encodedFormat != .max {
             // Decode only the declared payload; never scan pixel bytes for JPEG markers.
             return NSImage(data: Data(mip.bytes))
@@ -147,6 +158,82 @@ final class TEXParser {
                                 provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent),
               let cropped = full.cropping(to: CGRect(x: 0, y: 0, width: mip.contentWidth, height: mip.contentHeight)) else { return nil }
         return NSImage(cgImage: cropped, size: CGSize(width: mip.contentWidth, height: mip.contentHeight))
+    }
+
+    /// TEXS metadata follows every image/mipmap, not necessarily the first image.
+    /// Keep full atlas pixels for animation; static textures retain their existing crop.
+    func extractAnimation() -> TEXAnimation? {
+        guard data.starts(with: Data("TEXV0005\0TEXI0001\0".utf8)), data.count >= 46 else { return nil }
+        var offset = 18
+        func u32() -> UInt32? {
+            guard offset <= data.count - 4 else { return nil }
+            defer { offset += 4 }
+            return (0..<4).reduce(0) { $0 | UInt32(data[offset+$1]) << ($1*8) }
+        }
+        func magic() -> String? {
+            guard offset <= data.count - 9, data[offset+8] == 0 else { return nil }
+            defer { offset += 9 }
+            return String(data: data[offset..<offset+8], encoding: .ascii)
+        }
+        guard let format = u32(), let flags = u32(), flags & 4 != 0, flags & 32 == 0,
+              u32() != nil, u32() != nil, u32() != nil, u32() != nil, u32() != nil,
+              let container = magic(), ["TEXB0001", "TEXB0002", "TEXB0003", "TEXB0004"].contains(container),
+              let count = u32(), count > 0, count <= 256 else { return nil }
+        var encoded: UInt32 = .max
+        if container >= "TEXB0003" { guard let value = u32() else { return nil }; encoded = value }
+        if container == "TEXB0004" { guard u32() != nil else { return nil } }
+        var images: [NSImage] = [], sizes: [CGSize] = []
+        var pixelBudget: UInt64 = 64 * 1024 * 1024
+        for _ in 0..<count {
+            guard let mips = u32(), mips > 0, mips <= 32 else { return nil }
+            for mip in 0..<mips {
+                guard let w = u32(), let h = u32(), w > 0, h > 0, w <= 16384, h <= 16384 else { return nil }
+                var compressed: UInt32 = 0, unpacked: UInt32 = 0
+                if container >= "TEXB0002" {
+                    guard let c = u32(), c <= 1, let size = u32(), size <= 256 * 1024 * 1024 else { return nil }
+                    compressed = c; unpacked = size
+                }
+                guard let length = u32(), Int(length) <= data.count - offset else { return nil }
+                let start = offset; offset += Int(length)
+                guard mip == 0 else { continue }
+                let pixels = UInt64(w) * UInt64(h)
+                guard pixels <= pixelBudget else { return nil }
+                pixelBudget -= pixels
+                var bytes = Array(data[start..<offset])
+                if compressed == 1 {
+                    guard let decoded = Self.decodeLZ4(bytes, size: Int(unpacked)) else { return nil }
+                    bytes = decoded
+                }
+                let source = Mip(format: Int(format), width: Int(w), height: Int(h), contentWidth: Int(w), contentHeight: Int(h), encodedFormat: encoded, bytes: bytes)
+                guard let image = image(from: source) else { return nil }
+                // NSImage can synthesize a display-scaled representation on Retina.
+                // Validate encoded dimensions from bytes, not that representation.
+                if encoded != .max {
+                    guard let bitmap = NSBitmapImageRep(data: Data(bytes)), bitmap.pixelsWide == Int(w), bitmap.pixelsHigh == Int(h) else { return nil }
+                }
+                images.append(image); sizes.append(CGSize(width: Int(w), height: Int(h)))
+            }
+        }
+        guard let version = magic(), ["TEXS0001", "TEXS0002", "TEXS0003"].contains(version),
+              let frameCount = u32(), frameCount > 0, frameCount <= 4096 else { return nil }
+        if version == "TEXS0003" { guard u32() != nil, u32() != nil else { return nil } }
+        var frames: [TEXAnimation.Frame] = []
+        for _ in 0..<frameCount {
+            guard let imageIndex = u32(), Int(imageIndex) < images.count, let durationBits = u32() else { return nil }
+            let duration = Double(Float(bitPattern: durationBits))
+            guard duration.isFinite else { return nil }
+            var values: [Double] = []
+            for _ in 0..<6 {
+                guard let bits = u32() else { return nil }
+                values.append(version == "TEXS0001" ? Double(bits) : Double(Float(bitPattern: bits)))
+            }
+            guard values.allSatisfy({ $0.isFinite }) else { return nil }
+            let x = values[0], y = values[1], w = values[2], h = values[5], size = sizes[Int(imageIndex)]
+            guard x >= 0, y >= 0, w > 0, h > 0, x+w <= size.width, y+h <= size.height else { return nil }
+            let rect = CGRect(x: x/size.width, y: 1-(y+h)/size.height, width: w/size.width, height: h/size.height)
+            frames.append(.init(imageIndex: Int(imageIndex), rect: rect, size: CGSize(width: w, height: h), duration: duration > 0 ? duration : 1.0/30))
+        }
+        return TEXAnimation(images: images, nearestFiltering: flags & 1 != 0, frames: frames)
     }
 
     func extractImageData() -> Data? {
