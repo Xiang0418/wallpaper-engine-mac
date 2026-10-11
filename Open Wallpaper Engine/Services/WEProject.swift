@@ -8,31 +8,31 @@
 import SwiftUI
 import ImageIO
 
-struct WEProjectPropertyOption: Codable, Equatable, Hashable {
-    var label: String
-    var value: String
+/// Preserve all property definitions and their native JSON types during metadata edits.
+indirect enum WEProjectJSONValue: Codable, Equatable, Hashable {
+    case string(String), number(Double), bool(Bool), object([String: WEProjectJSONValue]), array([WEProjectJSONValue]), null
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if c.decodeNil() { self = .null }
+        else if let v = try? c.decode(Bool.self) { self = .bool(v) }
+        else if let v = try? c.decode(Double.self) { self = .number(v) }
+        else if let v = try? c.decode(String.self) { self = .string(v) }
+        else if let v = try? c.decode([String: WEProjectJSONValue].self) { self = .object(v) }
+        else { self = .array(try c.decode([WEProjectJSONValue].self)) }
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        switch self {
+        case .string(let v): try c.encode(v)
+        case .number(let v): try c.encode(v)
+        case .bool(let v): try c.encode(v)
+        case .object(let v): try c.encode(v)
+        case .array(let v): try c.encode(v)
+        case .null: try c.encodeNil()
+        }
+    }
 }
-
-struct WEProjectProperty: Codable, Equatable, Hashable {
-    // optional
-    var condition: String?
-    var index: Int?
-    var options: [WEProjectPropertyOption]?
-    var order: Int?
-    
-    // must have
-    var text: String
-    var type: String
-    var value: String
-}
-
-struct WEProjectProperties: Codable, Equatable, Hashable {
-    var schemecolor: WEProjectProperty?
-}
-
-struct WEProjectGeneral: Codable, Equatable, Hashable {
-    var properties: WEProjectProperties
-}
+typealias WEProjectGeneral = [String: WEProjectJSONValue]
 
 enum WorkshopId: Codable, Equatable, Hashable, RawRepresentable {
     case int(Int)

@@ -5,6 +5,38 @@ import AVFoundation
 
 @main struct SceneRuntimeTests {
     static func main() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("we-properties-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let suite = "WE-properties-tests-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { try? FileManager.default.removeItem(at: directory); defaults.removePersistentDomain(forName: suite) }
+        let definitions: [String: [String: Any]] = [
+            "enabled": ["type": "bool", "value": false],
+            "speed": ["type": "slider", "value": 1, "min": 0, "max": 2, "step": 0.1],
+            "title": ["type": "textinput", "value": "Clock"],
+            "color": ["type": "color", "value": "1 1 1"],
+            "icon": ["type": "scenetexture", "value": ""],
+            "target": ["type": "usershortcut", "value": ""]
+        ]
+        let original = try JSONSerialization.data(withJSONObject: ["general": ["properties": definitions]])
+        try original.write(to: directory.appendingPathComponent("project.json"))
+        let store = ScenePropertyStore(defaults: defaults)
+        store.set(true, name: "enabled", at: directory)
+        store.set(100, name: "speed", at: directory)
+        store.set("Changed", name: "title", at: directory)
+        store.set("NaN 0 1", name: "color", at: directory)
+        let restoredValues = ScenePropertyStore(defaults: defaults).values(at: directory)
+        precondition(restoredValues["enabled"] as? Bool == true && restoredValues["speed"] as? Double == 2)
+        precondition(restoredValues["title"] as? String == "Changed" && restoredValues["color"] as? String == "1 1 1")
+        precondition(ScenePropertyStore.isVisible(["condition": "enabled.value == true && speed.value >= 2"], values: restoredValues))
+        precondition(!ScenePropertyStore.isVisible(["condition": "enabled.value == false"], values: restoredValues))
+        precondition(!ScenePropertyStore.isVisible(["condition": "while(true){}"], values: restoredValues))
+        let unchanged = try Data(contentsOf: directory.appendingPathComponent("project.json"))
+        precondition(unchanged == original)
+        store.reset(at: directory)
+        precondition(store.values(at: directory)["enabled"] as? Bool == false)
+        print("Property types, validation, condition evaluation, persistence and reset: passed")
+
         let context = JSContext()!
         var errors: [String] = []
         let log: @convention(block) (String) -> Void = { errors.append($0) }
@@ -62,6 +94,20 @@ import AVFoundation
         runtime.stop()
         runtime.mouseDown(at:CGPoint(x:100,y:100));runtime.mouseUp(at:CGPoint(x:100,y:100))
         precondition(launches == 1)
+        let custom = SKSpriteNode(color: .white, size: CGSize(width: 64, height: 64))
+        let originalTexture = SKTexture(image: NSImage(size: NSSize(width: 2, height: 2)))
+        let customUniform = SKUniform(name: "custom0", texture: originalTexture)
+        custom.shader = SKShader(source: "void main(){gl_FragColor=vec4(1.0);}", uniforms: [customUniform])
+        let iconURL = directory.appendingPathComponent("icon.png")
+        let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 2, pixelsHigh: 2, bitsPerSample: 8,
+            samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        try bitmap.representation(using: .png, properties: [:])!.write(to: iconURL)
+        let textureRuntime = SceneScriptRuntime(objects: [["id": 7, "effects": [["passes": [["usertextures": [NSNull(), "icon"]]]]]]],
+            nodes: [7: custom], properties: ["icon": iconURL.path], size: scene.size, storageKey: suite)
+        precondition(customUniform.textureValue !== originalTexture, "Saved image applied to shader on initial load")
+        textureRuntime.applyUserProperties(["icon": ""])
+        precondition(customUniform.textureValue === originalTexture, "Clearing custom image restores package texture")
+        textureRuntime.stop()
         let analyzer = SceneAudioSpectrum()
         precondition(analyzer.snapshot().allSatisfy { $0 == 0 })
         analyzer.consume((0..<1024).map { sin(2 * .pi * 32 * Float($0)/1024) })
