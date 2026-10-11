@@ -201,6 +201,11 @@ struct WEMaterialPass: Codable {
     var blending: String?    // "translucent", "additive"
     var shader: String?
     var textures: [String?]?
+    var usertextures: [WEJSONValue]?
+    var usesMediaThumbnail: Bool {
+        guard let first = usertextures?.first, case .object(let binding) = first else { return false }
+        return binding["name"]?.string == "$mediaThumbnail" && binding["type"]?.string == "system"
+    }
     var constantshadervalues: [String: WEJSONValue]?
     var combos: [String: Int]?
     var cullmode: String?

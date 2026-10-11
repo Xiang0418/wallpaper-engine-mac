@@ -14,8 +14,11 @@ struct GeneralPage: SettingsPage {
         self.viewModel = viewModel
     }
     
+    @ObservedObject private var artwork = NowPlayingArtworkService.shared
+
     var body: some View {
         Form {
+            NowPlayingArtworkSettingsSection(media: artwork)
             // MARK: Automatic Startup
             Section {
                 Toggle("Start with macOS", isOn: $viewModel.settings.autoStart)
@@ -96,6 +99,7 @@ struct GeneralPage: SettingsPage {
                     Spacer()
                     Button {
                         viewModel.settings = GlobalSettings()
+                        artwork.artworkEnabled = false
                     } label: {
                         Text("Reset").frame(width: 100)
                     }
@@ -106,5 +110,20 @@ struct GeneralPage: SettingsPage {
                 Label("Reset", systemImage: "exclamationmark.triangle.fill")
             }
         }.formStyle(.grouped)
+    }
+}
+
+
+struct NowPlayingArtworkSettingsSection: View {
+    @ObservedObject var media: NowPlayingArtworkService
+    var body: some View {
+        Section {
+            Toggle("Use currently playing album artwork", isOn: $media.artworkEnabled)
+            Text(media.artworkStatus).font(.caption).foregroundStyle(.secondary)
+            if !media.trackTitle.isEmpty { Text(media.trackTitle).font(.callout).textSelection(.enabled) }
+            if media.artworkEnabled { Button("Retry media connection") { media.retry() } }
+        } header: {
+            Label("Other Media Players", systemImage: "music.note")
+        }
     }
 }

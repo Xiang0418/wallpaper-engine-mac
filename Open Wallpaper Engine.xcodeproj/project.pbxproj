@@ -68,6 +68,9 @@
 		CC3200000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3100000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift */; };
 		CC3200000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3100000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift */; };
 		DAEE29C62A9CB52100633898 /* WebWallpaperViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAEE29C52A9CB52100633898 /* WebWallpaperViewModel.swift */; };
+		CC5200000000000000000002 /* NowPlayingBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5100000000000000000002; };
+		CC5400000000000000000003 /* NowPlayingArtworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5300000000000000000003; };
+		CC5200000000000000000004 /* SceneMediaArtworkBinding.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5100000000000000000004; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -145,6 +148,9 @@
 		CC3100000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/InteractiveWallpaperScene.swift; sourceTree = "<group>"; };
 		CC3100000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneSpectrumTexture.swift; sourceTree = "<group>"; };
 		DAEE29C52A9CB52100633898 /* WebWallpaperViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebWallpaperViewModel.swift; sourceTree = "<group>"; };
+		CC5100000000000000000002 /* NowPlayingBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/NowPlayingBridge.swift; sourceTree = "<group>"; };
+		CC5300000000000000000003 /* NowPlayingArtworkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/NowPlayingArtworkService.swift; sourceTree = "<group>"; };
+		CC5100000000000000000004 /* SceneMediaArtworkBinding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneMediaArtworkBinding.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -228,6 +234,9 @@
 				AA1B2C3D4E5F600100ABCD04 /* SceneWallpaperViewModel.swift */,
 				CC3100000000000000000000 /* SceneRuntime/SceneScriptBootstrap.swift */,
 				CC3100000000000000000001 /* SceneRuntime/SceneScriptRuntime.swift */,
+				CC5100000000000000000002 /* NowPlayingBridge.swift */,
+				CC5300000000000000000003 /* NowPlayingArtworkService.swift */,
+				CC5100000000000000000004 /* SceneMediaArtworkBinding.swift */,
 				CC3100000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift */,
 				CC3100000000000000000003 /* SceneRuntime/SceneRopeTrail.swift */,
 				CC3100000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift */,
@@ -377,6 +386,7 @@
 				5EC47E722A2DB2E600120CCC /* Sources */,
 				5EC47E732A2DB2E600120CCC /* Frameworks */,
 				5EC47E742A2DB2E600120CCC /* Resources */,
+				CC5300000000000000000001 /* Build Media Bridge */,
 			);
 			buildRules = (
 			);
@@ -436,6 +446,20 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+        CC5300000000000000000001 /* Build Media Bridge */ = {
+            isa = PBXShellScriptBuildPhase;
+            buildActionMask = 2147483647;
+            files = ();
+            inputFileListPaths = ("$(SRCROOT)/scripts/media-bridge-inputs.xcfilelist",);
+            name = "Build Media Bridge";
+            outputFileListPaths = ("$(SRCROOT)/scripts/media-bridge-outputs.xcfilelist",);
+            runOnlyForDeploymentPostprocessing = 0;
+            shellPath = /bin/bash;
+            shellScript = "bash \"$SRCROOT/scripts/build-media-bridge.sh\"";
+        };
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		5EC47E722A2DB2E600120CCC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -485,6 +509,9 @@
 				AA1B2C3D4E5F600200ABCD04 /* SceneWallpaperViewModel.swift in Sources */,
 				CC3200000000000000000000 /* SceneRuntime/SceneScriptBootstrap.swift in Sources */,
 				CC3200000000000000000001 /* SceneRuntime/SceneScriptRuntime.swift in Sources */,
+				CC5200000000000000000002 /* NowPlayingBridge.swift in Sources */,
+				CC5400000000000000000003 /* NowPlayingArtworkService.swift in Sources */,
+				CC5200000000000000000004 /* SceneMediaArtworkBinding.swift in Sources */,
 				CC3200000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift in Sources */,
 				CC3200000000000000000003 /* SceneRuntime/SceneRopeTrail.swift in Sources */,
 				CC3200000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift in Sources */,
