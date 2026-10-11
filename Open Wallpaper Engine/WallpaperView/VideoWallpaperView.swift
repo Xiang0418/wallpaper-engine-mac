@@ -17,7 +17,17 @@ struct VideoWallpaperView: NSViewRepresentable {
     init(wallpaperViewModel: WallpaperViewModel, screenId: String) {
         self.wallpaperViewModel = wallpaperViewModel
         self.screenId = screenId
-        self._viewModel = StateObject(wrappedValue: VideoWallpaperViewModel(wallpaper: wallpaperViewModel.wallpaper(for: screenId)))
+        self._viewModel = StateObject(wrappedValue: VideoWallpaperViewModel(wallpaper: wallpaperViewModel.wallpaper(for: screenId), screenId: screenId))
+    }
+
+    class Coordinator {
+        let model: VideoWallpaperViewModel
+        init(_ model: VideoWallpaperViewModel) { self.model = model }
+    }
+    func makeCoordinator() -> Coordinator { Coordinator(viewModel) }
+    static func dismantleNSView(_ view: AVPlayerView, coordinator: Coordinator) {
+        view.player = nil
+        coordinator.model.stop()
     }
 
     func makeNSView(context: Context) -> AVPlayerView {
@@ -49,6 +59,6 @@ struct VideoWallpaperView: NSViewRepresentable {
         }
 
         viewModel.playRate = wallpaperViewModel.playRate
-        viewModel.playVolume = wallpaperViewModel.playVolume
+        viewModel.playVolume = wallpaperViewModel.effectiveVolume(for: selectedWallpaper)
     }
 }

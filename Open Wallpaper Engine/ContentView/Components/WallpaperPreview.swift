@@ -192,15 +192,12 @@ struct WallpaperPreview: SubviewOfContentView {
                         }
                         .opacity(0.5)
                         .disabled(true)
+                        if WallpaperViewModel.supportsVolume(wallpaperViewModel.currentWallpaper) {
+                            WallpaperVolumeControl(wallpaperViewModel: wallpaperViewModel,
+                                                   wallpaper: wallpaperViewModel.currentWallpaper)
+                        }
                         switch wallpaperViewModel.currentWallpaper.project.type.lowercased() {
                         case "video":
-                            HStack {
-                                Label("Volume", systemImage: "speaker.wave.3.fill")
-                                Spacer()
-                                Slider(value: $wallpaperViewModel.playVolume, in: 0...1).frame(width: 100)
-                                Text(String(format: "%.0f", wallpaperViewModel.playVolume * 100) + "%")
-                                    .frame(width: 35)
-                            }
                             HStack {
                                 Label("Playback Rate", systemImage: "play.fill")
                                 Spacer()

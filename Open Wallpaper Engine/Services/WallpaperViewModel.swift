@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 /// Provide Wallpaper Database for WallpaperView and ContentView etc.
 class WallpaperViewModel: ObservableObject {
@@ -140,31 +141,74 @@ class WallpaperViewModel: ObservableObject {
         }
     }
 
+    // The master volume remains the global mute gate; wallpaper levels are independent.
     var lastPlayVolume: Float = 1.0
     @Published public var playVolume: Float = 1.0 {
-        willSet {
-            if newValue == 0.0 {
-                for (index, item) in AppDelegate.shared.statusItem.menu!.items.enumerated() {
-                    if item.title == "Mute" {
-                        AppDelegate.shared.statusItem.menu!.items[index] =
-                            .init(title: String(localized: "Unmute"), systemImage: "speaker.fill", action: #selector(AppDelegate.shared.unmute), keyEquivalent: "")
-                    }
-                }
-            } else {
-                for (index, item) in AppDelegate.shared.statusItem.menu!.items.enumerated() {
-                    if item.title == "Unmute" {
-                        AppDelegate.shared.statusItem.menu!.items[index] =
-                            .init(title: String(localized: "Mute"), systemImage: "speaker.slash.fill", action: #selector(AppDelegate.shared.mute), keyEquivalent: "")
-                    }
-                }
-            }
-        }
         didSet {
-            self.lastPlayVolume = oldValue
+            if oldValue > 0 { lastPlayVolume = oldValue }
+            guard let menu = AppDelegate.shared.statusItem?.menu,
+                  let item = menu.items.first(where: {
+                      $0.action == #selector(AppDelegate.mute) || $0.action == #selector(AppDelegate.unmute)
+                  }) else { return }
+            item.title = playVolume == 0 ? String(localized: "Unmute") : String(localized: "Mute")
+            item.action = playVolume == 0 ? #selector(AppDelegate.unmute) : #selector(AppDelegate.mute)
+            item.image = NSImage(systemSymbolName: playVolume == 0 ? "speaker.fill" : "speaker.slash.fill", accessibilityDescription: nil)
         }
     }
 
-    init() {
+    /// Audio routing is independent from the display selected for wallpaper editing.
+    @Published private(set) var audioSourceScreenId: String
+
+    func updateMainDisplayAudioSource(screenId: String? = nil) {
+        audioSourceScreenId = screenId ?? Self.mainScreenId()
+        WallpaperPlaybackSessions.shared.selectAudioSource(screenId: audioSourceScreenId)
+    }
+
+    private static let volumesKey = "WallpaperVolumeLevels"
+    private let volumeDefaults: UserDefaults
+    @Published private(set) var wallpaperVolumes: [String: Float] = [:]
+
+    static func volumeKey(for wallpaper: WEWallpaper) -> String {
+        wallpaper.wallpaperDirectory.standardizedFileURL.path
+    }
+
+    static func supportsVolume(_ wallpaper: WEWallpaper) -> Bool {
+        wallpaper.project != .invalid && ["scene", "video"].contains(wallpaper.project.type.lowercased())
+    }
+
+    func volume(for wallpaper: WEWallpaper) -> Float {
+        wallpaperVolumes[Self.volumeKey(for: wallpaper)] ?? 1
+    }
+
+    func setVolume(_ volume: Float, for wallpaper: WEWallpaper) {
+        guard volume.isFinite else { return }
+        let level = min(1, max(0, volume))
+        let key = Self.volumeKey(for: wallpaper)
+        guard wallpaperVolumes[key] != level else { return }
+        wallpaperVolumes[key] = level
+        volumeDefaults.set(wallpaperVolumes.mapValues { Double($0) }, forKey: Self.volumesKey)
+    }
+
+    func effectiveVolume(for wallpaper: WEWallpaper) -> Float {
+        playVolume * volume(for: wallpaper)
+    }
+
+    func volumePublisher(for wallpaper: WEWallpaper) -> AnyPublisher<Float, Never> {
+        let key = Self.volumeKey(for: wallpaper)
+        return $playVolume.combineLatest($wallpaperVolumes)
+            .map { master, levels in master * (levels[key] ?? 1) }
+            .removeDuplicates()
+            .eraseToAnyPublisher()
+    }
+
+    init(volumeDefaults: UserDefaults = .standard) {
+        self.volumeDefaults = volumeDefaults
+        audioSourceScreenId = Self.mainScreenId()
+        wallpaperVolumes = (volumeDefaults.dictionary(forKey: Self.volumesKey) ?? [:])
+            .compactMapValues { value in
+                guard let number = value as? NSNumber, number.floatValue.isFinite else { return nil }
+                return min(1, max(0, number.floatValue))
+            }
         // Load per-screen wallpapers
         if let data = UserDefaults.standard.data(forKey: "ScreenWallpapers"),
            let saved = try? JSONDecoder().decode([String: WEWallpaper].self, from: data) {
@@ -190,6 +234,7 @@ class WallpaperViewModel: ObservableObject {
 
         // Load recent wallpapers
         loadRecents()
+        WallpaperPlaybackSessions.shared.selectAudioSource(screenId: audioSourceScreenId)
     }
 
     // MARK: - Screen ID helpers
@@ -200,8 +245,8 @@ class WallpaperViewModel: ObservableObject {
     }
 
     static func mainScreenId() -> String {
-        guard let main = NSScreen.main else { return "0" }
-        return screenId(for: main)
+        // NSScreen.main follows keyboard focus; CGMainDisplayID is the system primary display.
+        String(CGMainDisplayID())
     }
 
     static func screenName(for screen: NSScreen) -> String {

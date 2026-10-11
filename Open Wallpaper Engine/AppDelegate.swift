@@ -18,6 +18,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var mainWindowController: MainWindowController!
     
     var wallpaperWindows: [String: NSWindow] = [:]
+    private var connectedScreenIds = Set<String>()
     
     var contentViewModel = ContentViewModel()
     var wallpaperViewModel = WallpaperViewModel()
@@ -56,8 +57,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
-        let dockMenu = self.statusItem.menu?.copy() as! NSMenu?
-        dockMenu?.items.removeLast() // Remove `Quit` menu item
+        let dockMenu = makeStatusMenu()
+        dockMenu.items.removeLast() // Remove `Quit` menu item
         return dockMenu
     }
     
@@ -154,10 +155,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
 // MARK: Set Wallpaper Windows - One per screen
     func setWallpaperWindows() {
+        connectedScreenIds = Set(NSScreen.screens.map { WallpaperViewModel.screenId(for: $0) })
         for screen in NSScreen.screens {
             let screenId = WallpaperViewModel.screenId(for: screen)
             guard wallpaperViewModel.isScreenEnabled(screenId) else { continue }
 
+            if let window = wallpaperWindows[screenId] {
+                window.setFrame(screen.frame, display: true)
+                continue
+            }
             let window = WallpaperWindow()
             window.styleMask = [.borderless, .fullSizeContentView]
             window.level = NSWindow.Level(Int(CGWindowLevelForKey(.desktopWindow)))
@@ -179,17 +185,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     /// Rebuild wallpaper windows without changing enabled state.
     func rebuildWallpaperWindows() {
-        for (_, window) in wallpaperWindows { window.close() }
-        wallpaperWindows.removeAll()
+        let active = Set(NSScreen.screens.map { WallpaperViewModel.screenId(for: $0) })
+            .intersection(wallpaperViewModel.enabledScreens)
+        for id in Array(wallpaperWindows.keys) where !active.contains(id) {
+            WallpaperPlaybackSessions.shared.stop(screenId: id)
+            if let window = wallpaperWindows.removeValue(forKey: id) {
+                window.contentView = nil
+                window.close()
+            }
+        }
         setWallpaperWindows()
         for (_, window) in wallpaperWindows { window.orderFront(nil) }
     }
 
     /// Called when monitors connect/disconnect — auto-enables newly connected screens.
     @objc func screensChanged() {
+        wallpaperViewModel.updateMainDisplayAudioSource()
         let connectedIds = Set(NSScreen.screens.map { WallpaperViewModel.screenId(for: $0) })
-        for id in connectedIds where !wallpaperViewModel.enabledScreens.contains(id) {
+        for id in connectedIds.subtracting(connectedScreenIds) {
             wallpaperViewModel.enabledScreens.insert(id)
+        }
+        if !connectedIds.contains(wallpaperViewModel.selectedScreenId) {
+            wallpaperViewModel.selectedScreenId = WallpaperViewModel.mainScreenId()
         }
         rebuildWallpaperWindows()
     }
