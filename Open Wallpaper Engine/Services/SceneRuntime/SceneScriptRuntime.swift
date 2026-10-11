@@ -9,6 +9,7 @@ final class SceneScriptRuntime {
     private var nodes: [Int: SKNode]
     private var contentNodes: [Int: SKNode]
     private var interactiveIDs = Set<Int>()
+    private var originalCustomTextures: [String: SKTexture] = [:]
     private var originalTextures: [Int: SKTexture] = [:]
     private let objects: [[String: Any]]
     private var properties: [String: Any]
@@ -61,6 +62,7 @@ final class SceneScriptRuntime {
         }
         synchronizeNodes()
         refreshShortcutTextures()
+        refreshCustomTextures()
     }
 
     /// No shell execution, Windows commands or arbitrary URL handlers. User-selected
@@ -82,6 +84,7 @@ final class SceneScriptRuntime {
         context.objectForKeyedSubscript("applyProperties")?.call(withArguments: [changes])
         synchronizeNodes()
         refreshShortcutTextures(changed:Set(changes.keys))
+        refreshCustomTextures(changed: Set(changes.keys))
     }
 
     func update(delta: TimeInterval, cursor: CGPoint) {
@@ -105,7 +108,7 @@ final class SceneScriptRuntime {
         guard !stopped else { return }
         stopped = true
         context.objectForKeyedSubscript("shutdown")?.call(withArguments: [])
-        nodes.removeAll(); contentNodes.removeAll(); originalTextures.removeAll()
+        nodes.removeAll(); contentNodes.removeAll(); originalTextures.removeAll(); originalCustomTextures.removeAll()
         hovered = nil; pressed = nil
     }
 
@@ -182,6 +185,25 @@ final class SceneScriptRuntime {
             if let target=properties[key] as? String,let url=Self.shortcutURL(target),url.isFileURL {
                 sprite.texture=SKTexture(image:NSWorkspace.shared.icon(forFile:url.path))
             } else { sprite.texture=originalTextures[id] }
+        }
+    }
+
+    private func refreshCustomTextures(changed: Set<String>? = nil) {
+        for object in objects {
+            guard let id = object["id"] as? Int, let sprite = contentNodes[id] as? SKSpriteNode,
+                  let effects = object["effects"] as? [[String: Any]] else { continue }
+            for (index, effect) in effects.enumerated() {
+                guard let passes = effect["passes"] as? [[String: Any]],
+                      let bindings = passes.first?["usertextures"] as? [Any], bindings.count > 1,
+                      let name = bindings[1] as? String, changed == nil || changed!.contains(name),
+                      let uniform = sprite.shader?.uniformNamed("custom\(index)") else { continue }
+                let cacheKey = "\(id).\(index)"
+                if originalCustomTextures[cacheKey] == nil { originalCustomTextures[cacheKey] = uniform.textureValue }
+                if let path = properties[name] as? String, path.hasPrefix("/"),
+                   let image = NSImage(contentsOfFile: path) {
+                    uniform.textureValue = SKTexture(image: image)
+                } else { uniform.textureValue = originalCustomTextures[cacheKey] }
+            }
         }
     }
 
