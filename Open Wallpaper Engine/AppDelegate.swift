@@ -95,6 +95,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func applicationWillTerminate(_ notification: Notification) {
+        ExternalMediaService.shared.shutdown()
         for id in wallpaperWindows.keys { WallpaperPlaybackSessions.shared.stop(screenId: id) }
         if let eventHandler { NSEvent.removeMonitor(eventHandler) }
         restoreDesktopImages()

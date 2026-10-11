@@ -17,6 +17,10 @@ final class InteractiveWallpaperScene: SKScene {
     private var textureAnimations: [(SKSpriteNode, SceneTextureAnimation)] = []
     private var scrollSprites: [SKSpriteNode] = []
     private var effectTime: Double = 0
+    private let mediaConsumerID = UUID()
+    private var mediaInstalled = false
+    private var artworkRevision = -1
+    private var mediaBindings: [SceneMediaArtworkBinding] = []
 
     func bindTextureAnimation(node: SKSpriteNode, textures: [SKTexture], durations: [Double]) {
         guard textures.count == durations.count, !textures.isEmpty else { return }
@@ -30,6 +34,7 @@ final class InteractiveWallpaperScene: SKScene {
         didSet {
             guard oldValue != isPaused else { return }
             lastTime = nil; cursorHistory.reset()
+            if mediaInstalled { ExternalMediaService.shared.setConsumer(mediaConsumerID, active: !isPaused && !stopped) }
             if isPaused {
                 scriptRuntime?.cancelPointer()
                 for (_, trail) in trails { trail.disconnectCursor() }
@@ -51,11 +56,14 @@ final class InteractiveWallpaperScene: SKScene {
                 addChild(trail); trails.append((node, trail))
             }
             if let sprite = contentNodes[id] as? SKSpriteNode {
+                if sprite.userData?["mediaThumbnail"] as? Bool == true { mediaBindings.append(SceneMediaArtworkBinding(sprite: sprite)) }
                 if sprite.shader?.uniformNamed("u_audioSpectrum") != nil { spectrumSprites.append(sprite) }
                 if sprite.shader?.uniformNamed("u_scrollTime") != nil { scrollSprites.append(sprite) }
             }
 
         }
+        mediaInstalled = true
+        ExternalMediaService.shared.setConsumer(mediaConsumerID, active: !isPaused)
         // Keep the authored transform available to scripts. Viewport adaptation
         // moves a separate parent, including the cover and all sibling effects.
         var adapted = Set<ObjectIdentifier>()
@@ -86,7 +94,10 @@ final class InteractiveWallpaperScene: SKScene {
         guard !stopped, !isPaused else { return }
         let dt = lastTime.map { min(0.1, max(0, currentTime-$0)) } ?? 0
         lastTime = currentTime
-        for (node, animation) in textureAnimations { animation.advance(dt); node.texture = animation.texture }
+        let media = ExternalMediaService.shared
+        for (node, animation) in textureAnimations where !(node.userData?["mediaThumbnail"] as? Bool == true && media.artworkTexture != nil) {
+            animation.advance(dt); node.texture = animation.texture
+        }
         effectTime += dt
         for sprite in scrollSprites { sprite.shader?.uniformNamed("u_scrollTime")?.floatValue = Float(effectTime) }
         var point: CGPoint?
@@ -96,6 +107,10 @@ final class InteractiveWallpaperScene: SKScene {
             if view.bounds.contains(p) { point = convertPoint(fromView: p) }
         }
         scriptRuntime?.update(delta: dt, cursor: point ?? CGPoint(x: -1e6, y: -1e6))
+        if media.artworkRevision != artworkRevision {
+            mediaBindings.forEach { $0.apply(media.artworkTexture) }
+            artworkRevision = media.artworkRevision
+        }
         updateViewportLayout()
         let samples = cursorHistory.consume(until: ProcessInfo.processInfo.systemUptime, frameDuration: dt, current: point)
         for (node, trail) in trails {
@@ -152,6 +167,9 @@ final class InteractiveWallpaperScene: SKScene {
     func stop() {
         guard !stopped else { return }
         stopped = true
+        if mediaInstalled { ExternalMediaService.shared.setConsumer(mediaConsumerID, active: false) }
+        mediaInstalled = false
+        mediaBindings.forEach { $0.apply(nil) }; mediaBindings.removeAll()
         cursorHistory.reset()
         scriptRuntime?.stop(); scriptRuntime = nil
         spectrumProvider = nil

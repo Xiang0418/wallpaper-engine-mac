@@ -342,6 +342,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         skScene.scriptRuntime?.applyUserProperties(properties)
         skScene.spectrumProvider = { [weak self] in
             guard let self else { return Array(repeating:0,count:64) }
+            if ExternalMediaService.shared.systemAudioEnabled { return ExternalMediaService.shared.spectrum() }
             var mixed = [Float](repeating:0,count:64)
             for (index,source) in self.spectrumSources.enumerated() where index < self.audioPlayers.count {
                 let player = self.audioPlayers[index].0
@@ -617,6 +618,10 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         if obj.colorBlendMode == 6 { node.blendMode = .add }
         if obj.colorBlendMode == 31 { node.blendMode = .screen }
         applyEffects(obj, to: node, wallpaperDir: wallpaperDir)
+        if (obj.instance?.usertextures != nil ? obj.instance?.usesMediaThumbnail : material?.passes?.first?.usesMediaThumbnail) == true {
+            node.userData = node.userData ?? NSMutableDictionary()
+            node.userData?["mediaThumbnail"] = true
+        }
         return node
     }
 

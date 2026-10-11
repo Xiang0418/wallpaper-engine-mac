@@ -71,6 +71,10 @@
 		DD1000000000000000000001 /* WallpaperVolumeControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1000000000000000000002 /* WallpaperVolumeControl.swift */; };
 		DD2000000000000000000001 /* WallpaperPlaybackSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD2000000000000000000002 /* WallpaperPlaybackSession.swift */; };
 		DD0900000000000000000001 /* SteamDownloadProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0900000000000000000002 /* SteamDownloadProcess.swift */; };
+		CC5200000000000000000001 /* SystemAudioCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5100000000000000000001; };
+		CC5200000000000000000002 /* NowPlayingBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5100000000000000000002; };
+		CC5200000000000000000003 /* ExternalMediaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5100000000000000000003; };
+		CC5200000000000000000004 /* SceneMediaArtworkBinding.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5100000000000000000004; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -151,6 +155,10 @@
 		DD1000000000000000000002 /* WallpaperVolumeControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperVolumeControl.swift; sourceTree = "<group>"; };
 		DD2000000000000000000002 /* WallpaperPlaybackSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperPlaybackSession.swift; sourceTree = "<group>"; };
 		DD0900000000000000000002 /* SteamDownloadProcess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamDownloadProcess.swift; sourceTree = "<group>"; };
+		CC5100000000000000000001 /* SystemAudioCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SystemAudioCapture.swift; sourceTree = "<group>"; };
+		CC5100000000000000000002 /* NowPlayingBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/NowPlayingBridge.swift; sourceTree = "<group>"; };
+		CC5100000000000000000003 /* ExternalMediaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/ExternalMediaService.swift; sourceTree = "<group>"; };
+		CC5100000000000000000004 /* SceneMediaArtworkBinding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneMediaArtworkBinding.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -235,6 +243,10 @@
 				AA1B2C3D4E5F600100ABCD04 /* SceneWallpaperViewModel.swift */,
 				CC3100000000000000000000 /* SceneRuntime/SceneScriptBootstrap.swift */,
 				CC3100000000000000000001 /* SceneRuntime/SceneScriptRuntime.swift */,
+				CC5100000000000000000001 /* SystemAudioCapture.swift */,
+				CC5100000000000000000002 /* NowPlayingBridge.swift */,
+				CC5100000000000000000003 /* ExternalMediaService.swift */,
+				CC5100000000000000000004 /* SceneMediaArtworkBinding.swift */,
 				CC3100000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift */,
 				CC3100000000000000000003 /* SceneRuntime/SceneRopeTrail.swift */,
 				CC3100000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift */,
@@ -511,6 +523,10 @@
 				AA1B2C3D4E5F600200ABCD04 /* SceneWallpaperViewModel.swift in Sources */,
 				CC3200000000000000000000 /* SceneRuntime/SceneScriptBootstrap.swift in Sources */,
 				CC3200000000000000000001 /* SceneRuntime/SceneScriptRuntime.swift in Sources */,
+				CC5200000000000000000001 /* SystemAudioCapture.swift in Sources */,
+				CC5200000000000000000002 /* NowPlayingBridge.swift in Sources */,
+				CC5200000000000000000003 /* ExternalMediaService.swift in Sources */,
+				CC5200000000000000000004 /* SceneMediaArtworkBinding.swift in Sources */,
 				CC3200000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift in Sources */,
 				CC3200000000000000000003 /* SceneRuntime/SceneRopeTrail.swift in Sources */,
 				CC3200000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift in Sources */,

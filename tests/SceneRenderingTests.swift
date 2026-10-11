@@ -141,12 +141,20 @@ final class AppDelegate {
         try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "/tmp/we-phase2-scene.png"))
         check(bitmap.pixelsWide == 1920 || bitmap.pixelsWide == 3840, "Scene renders at display backing resolution")
         let cover = layer(529).children.first as! SKSpriteNode
+        check(cover.userData?["mediaThumbnail"] as? Bool == true, "Real cover material binds the system media thumbnail")
+        let coverBinding = SceneMediaArtworkBinding(sprite: cover)
+        let externalImage = NSImage(size: CGSize(width: 640, height: 360), flipped: false) { rect in
+            NSColor.red.setFill(); rect.fill(); return true
+        }
+        coverBinding.apply(SKTexture(image: externalImage))
         if let isolated = view.texture(from: cover, crop: CGRect(x: -150, y: -150, width: 300, height: 300)) {
             let pixels = NSBitmapImageRep(cgImage: isolated.cgImage())
             let center = pixels.colorAt(x: pixels.pixelsWide / 2, y: pixels.pixelsHigh / 2)!.alphaComponent
             let corner = pixels.colorAt(x: 0, y: 0)!.alphaComponent
             check(center > 0.9 && corner < 0.1, "GPU cover mask preserves center and removes corners")
         } else { fatalError("Cannot render cover mask") }
+
+        coverBinding.apply(nil)
 
         let runtime = interactive.scriptRuntime!
         runtime.applyUserProperties(["appdockenabled":true,"appdockenable1":true,"appdockenable15":true])
