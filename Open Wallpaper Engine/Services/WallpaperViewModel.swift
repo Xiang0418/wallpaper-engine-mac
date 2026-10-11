@@ -26,7 +26,7 @@ class WallpaperViewModel: ObservableObject {
         }
     }
 
-    /// Per-screen wallpaper assignments, keyed by CGDirectDisplayID as String.
+    /// Per-screen wallpaper assignments, keyed by persistent display UUID.
     @Published var wallpapers: [String: WEWallpaper] = [:] {
         didSet { saveWallpapers() }
     }
@@ -229,8 +229,21 @@ class WallpaperViewModel: ObservableObject {
             self.enabledScreens = Set(NSScreen.screens.map { Self.screenId(for: $0) })
         }
 
+        // Migrate session-specific numeric IDs to hardware display UUIDs.
+        for screen in NSScreen.screens {
+            let legacy = String(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID ?? 0)
+            let stable = Self.screenId(for: screen)
+            if legacy != stable {
+                if let wallpaper = wallpapers.removeValue(forKey: legacy), wallpapers[stable] == nil { wallpapers[stable] = wallpaper }
+                if enabledScreens.remove(legacy) != nil { enabledScreens.insert(stable) }
+            }
+        }
+
         // Default selected screen to main
         self.selectedScreenId = Self.mainScreenId()
+
+        saveWallpapers()
+        UserDefaults.standard.set(Array(enabledScreens), forKey: "EnabledScreens")
 
         // Load recent wallpapers
         loadRecents()
@@ -241,12 +254,17 @@ class WallpaperViewModel: ObservableObject {
 
     static func screenId(for screen: NSScreen) -> String {
         let displayId = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID ?? 0
-        return String(displayId)
+        return stableScreenId(displayId)
     }
 
     static func mainScreenId() -> String {
         // NSScreen.main follows keyboard focus; CGMainDisplayID is the system primary display.
-        String(CGMainDisplayID())
+        stableScreenId(CGMainDisplayID())
+    }
+
+    private static func stableScreenId(_ displayId: CGDirectDisplayID) -> String {
+        guard let uuid = CGDisplayCreateUUIDFromDisplayID(displayId)?.takeRetainedValue() else { return String(displayId) }
+        return CFUUIDCreateString(nil, uuid) as String
     }
 
     static func screenName(for screen: NSScreen) -> String {

@@ -74,6 +74,21 @@ final class AppDelegate {
         check(player.rate == 0 && !audio[0].0.isPlaying, "Sleep pauses both players")
         model.systemDidWake(Notification(name: NSWorkspace.screensDidWakeNotification))
         check(player.rate == 1 && audio[0].0.isPlaying, "Wake restores requested playback")
+        model.setPlaybackPolicy(paused: true, muted: false)
+        check(player.rate == 0 && !audio[0].0.isPlaying && model.skScene!.isPaused, "Application pause freezes video, music and scripts")
+        model.systemWillSleep(Notification(name: NSWorkspace.willSleepNotification))
+        model.systemWillSleep(Notification(name: NSWorkspace.screensDidSleepNotification))
+        model.systemDidWake(Notification(name: NSWorkspace.didWakeNotification))
+        model.setPlaybackPolicy(paused: false, muted: false)
+        check(player.rate == 0, "System wake cannot override display sleep")
+        model.systemDidWake(Notification(name: NSWorkspace.screensDidWakeNotification))
+        AppDelegate.shared.wallpaperViewModel.playRate = 0
+        spin(0.1)
+        model.setPlaybackPolicy(paused: true, muted: true)
+        model.setPlaybackPolicy(paused: false, muted: false)
+        check(player.rate == 0 && player.volume == 0, "Policy removal preserves manual pause and mute")
+        AppDelegate.shared.wallpaperViewModel.playRate = 1
+        spin(0.1)
         let musicTime = audio[0].0.currentTime
         player.seek(to: CMTime(seconds: max(0, asset.duration.seconds - 0.3), preferredTimescale: 600))
         spin(1.5)

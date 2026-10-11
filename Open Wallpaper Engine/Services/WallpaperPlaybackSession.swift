@@ -2,7 +2,12 @@ import Foundation
 
 protocol WallpaperPlaybackSession: AnyObject {
     func stop()
+    func setPlaybackPolicy(paused: Bool, muted: Bool)
     func setAudioEnabled(_ enabled: Bool)
+}
+
+extension WallpaperPlaybackSession {
+    func setPlaybackPolicy(paused: Bool, muted: Bool) {}
 }
 
 /// One live renderer per screen, and only the selected screen may emit audio.
@@ -14,6 +19,14 @@ final class WallpaperPlaybackSessions {
     }
     private var entries: [String: Entry] = [:]
     private var audioSourceScreenId: String?
+    private var policyPaused = false
+    private var policyMuted = false
+
+    func setPlaybackPolicy(paused: Bool, muted: Bool) {
+        policyPaused = paused; policyMuted = muted
+        entries.values.forEach { $0.session?.setPlaybackPolicy(paused: paused, muted: muted) }
+    }
+
 
     func selectAudioSource(screenId: String?) {
         audioSourceScreenId = screenId
@@ -24,6 +37,7 @@ final class WallpaperPlaybackSessions {
         if let old = entries.removeValue(forKey: screenId)?.session, old !== session {
             old.stop()
         }
+        session.setPlaybackPolicy(paused: policyPaused, muted: policyMuted)
         entries[screenId] = Entry(session: session)
         refreshAudioOwners()
     }

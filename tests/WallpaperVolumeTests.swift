@@ -134,6 +134,14 @@ extension URL {
         shared.playVolume = 1
         check(close(video.player.volume, 0.71), "Unmute preserves video wallpaper level")
 
+        WallpaperPlaybackSessions.shared.setPlaybackPolicy(paused: true, muted: true)
+        check(video.player.volume == 0 && video.player.rate == 0, "Application policy reaches registered video session")
+        shared.setVolume(0.63, for: b)
+        check(video.player.volume == 0, "Wallpaper level changes cannot bypass policy mute")
+        WallpaperPlaybackSessions.shared.setPlaybackPolicy(paused: false, muted: false)
+        check(video.player.rate == 0 && close(video.player.volume, 0.63), "Removing policy preserves manual pause and updated volume")
+        shared.setVolume(0.71, for: b)
+
         if CommandLine.arguments.count > 1 {
             let wallpaper = WEWallpaper(using: WEProject(file: "scene.json", preview: "", title: "Scene fixture", type: "scene"), where: URL(fileURLWithPath: CommandLine.arguments[1]))
             shared.setVolume(0.44, for: wallpaper)

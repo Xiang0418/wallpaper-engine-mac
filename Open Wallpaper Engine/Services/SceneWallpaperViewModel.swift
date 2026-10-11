@@ -43,6 +43,14 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     private var volumeSubscription: AnyCancellable?
     private var audioError: String?
     private var sleeping = false
+    private var sleepReasons = Set<String>()
+    private var policyPaused = false
+    private var policyMuted = false
+    func setPlaybackPolicy(paused: Bool, muted: Bool) {
+        policyPaused = paused; policyMuted = muted
+        applyPlayback()
+    }
+
     private var playRate: Float = 0
     private var playVolume: Float = 0
     private weak var fallbackNode: SKNode?
@@ -72,11 +80,11 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     }
 
     private func applyPlayback() {
-        let rate: Float = sleeping ? 0 : playRate
+        let rate: Float = (sleeping || policyPaused) ? 0 : playRate
         videoPlayer?.rate = rate
-        videoPlayer?.volume = audioEnabled ? playVolume : 0
+        videoPlayer?.volume = audioEnabled && !policyMuted ? playVolume : 0
         for (player, volume) in audioPlayers {
-            player.volume = audioEnabled ? volume * playVolume : 0
+            player.volume = audioEnabled && !policyMuted ? volume * playVolume : 0
             if rate == 0 { player.pause() }
             else { player.rate = rate; if !player.isPlaying { player.play() } }
         }
@@ -112,6 +120,8 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(systemDidWake(_:)),
             name: NSWorkspace.screensDidWakeNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(systemWillSleep(_:)), name: NSWorkspace.willSleepNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(systemDidWake(_:)), name: NSWorkspace.didWakeNotification, object: nil)
         let shared = AppDelegate.shared.wallpaperViewModel
         playRate = shared.playRate
         playVolume = shared.playVolume
@@ -696,13 +706,15 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
 
     @objc func systemWillSleep(_ notification: Notification) {
         print("[SceneVM] System is going to sleep")
-        sleeping = true
+        sleepReasons.insert(notification.name == NSWorkspace.willSleepNotification ? "system" : "display")
+        sleeping = !sleepReasons.isEmpty
         applyPlayback()
     }
 
     @objc func systemDidWake(_ notification: Notification) {
         print("[SceneVM] System woke up")
-        sleeping = false
+        sleepReasons.remove(notification.name == NSWorkspace.didWakeNotification ? "system" : "display")
+        sleeping = !sleepReasons.isEmpty
         applyPlayback()
     }
 }
