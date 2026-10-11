@@ -95,7 +95,7 @@ class PKGParser {
         let start = dataBaseOffset + Int(entry.offset)
         let end = start + Int(entry.length)
         guard end <= data.count else { return nil }
-        return data[start..<end]
+        return Data(data[start..<end])
     }
 
     func extractJSON<T: Decodable>(named name: String, as type: T.Type) throws -> T? {
