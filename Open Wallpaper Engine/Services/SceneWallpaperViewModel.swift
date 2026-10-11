@@ -563,6 +563,10 @@ class SceneWallpaperViewModel: ObservableObject {
         if obj.colorBlendMode == 6 { node.blendMode = .add }
         if obj.colorBlendMode == 31 { node.blendMode = .screen }
         applyEffects(obj, to: node, wallpaperDir: wallpaperDir)
+        if (obj.instance?.usertextures != nil ? obj.instance?.usesMediaThumbnail : material?.passes?.first?.usesMediaThumbnail) == true {
+            node.userData = node.userData ?? NSMutableDictionary()
+            node.userData?["mediaThumbnail"] = true
+        }
         return node
     }
 

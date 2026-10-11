@@ -14,9 +14,14 @@ final class InteractiveWallpaperScene: SKScene {
     private var spectrumSprites: [SKSpriteNode] = []
     var effectsDidUpdate: ((Int, [[String: Any]]) -> Void)?
     private var stopped = false
+    private let artworkConsumerID = UUID()
+    private var artworkInstalled = false
+    private var artworkRevision = -1
+    private var mediaBindings: [SceneMediaArtworkBinding] = []
 
     override var isPaused: Bool {
         didSet {
+            if artworkInstalled { NowPlayingArtworkService.shared.setConsumer(artworkConsumerID, active: !isPaused && !stopped) }
             guard oldValue != isPaused else { return }
             lastTime = nil; cursorHistory.reset()
             if isPaused {
@@ -39,10 +44,14 @@ final class InteractiveWallpaperScene: SKScene {
                 trail.zPosition = CGFloat(index+1)
                 addChild(trail); trails.append((node, trail))
             }
-            if let sprite = contentNodes[id] as? SKSpriteNode,
-               sprite.shader?.uniformNamed("u_audioSpectrum") != nil { spectrumSprites.append(sprite) }
+            if let sprite = contentNodes[id] as? SKSpriteNode {
+                if sprite.userData?["mediaThumbnail"] as? Bool == true { mediaBindings.append(SceneMediaArtworkBinding(sprite: sprite)) }
+                if sprite.shader?.uniformNamed("u_audioSpectrum") != nil { spectrumSprites.append(sprite) }
+            }
 
         }
+        artworkInstalled = true
+        NowPlayingArtworkService.shared.setConsumer(artworkConsumerID, active: !isPaused)
         // Keep the authored transform available to scripts. Viewport adaptation
         // moves a separate parent, including the cover and all sibling effects.
         var adapted = Set<ObjectIdentifier>()
@@ -73,6 +82,7 @@ final class InteractiveWallpaperScene: SKScene {
         guard !stopped else { return }
         let dt = lastTime.map { min(0.1, max(0, currentTime-$0)) } ?? 0
         lastTime = currentTime
+        let media = NowPlayingArtworkService.shared
         var point: CGPoint?
         if let view, let window = view.window {
             let windowPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
@@ -80,6 +90,10 @@ final class InteractiveWallpaperScene: SKScene {
             if view.bounds.contains(p) { point = convertPoint(fromView: p) }
         }
         scriptRuntime?.update(delta: dt, cursor: point ?? CGPoint(x: -1e6, y: -1e6))
+        if media.artworkRevision != artworkRevision {
+            mediaBindings.forEach { $0.apply(media.artworkTexture) }
+            artworkRevision = media.artworkRevision
+        }
         updateViewportLayout()
         let samples = cursorHistory.consume(until: ProcessInfo.processInfo.systemUptime, frameDuration: dt, current: point)
         for (node, trail) in trails {
@@ -136,6 +150,9 @@ final class InteractiveWallpaperScene: SKScene {
     func stop() {
         guard !stopped else { return }
         stopped = true
+        if artworkInstalled { NowPlayingArtworkService.shared.setConsumer(artworkConsumerID, active: false) }
+        artworkInstalled = false
+        mediaBindings.forEach { $0.apply(nil) }; mediaBindings.removeAll()
         cursorHistory.reset()
         scriptRuntime?.stop(); scriptRuntime = nil
         spectrumProvider = nil

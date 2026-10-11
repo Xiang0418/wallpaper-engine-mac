@@ -204,3 +204,14 @@ error around 74 scene units on a radius-180 circle, while event sampling stays
 below 3 (observed 0.77). It also verifies elapsed-time conservation, backlog
 bounds and stale-input removal. Hardware cursor feel still depends on the actual
 mouse event rate and configured wallpaper FPS.
+
+## Control Center artwork
+
+Opt in to album artwork in General settings. The bundled MediaRemoteAdapter
+reads Control Center metadata through private APIs. Missing artwork restores
+the packaged texture. One reader is shared across active scene displays and
+stops when they pause or the system sleeps. No system-audio capture is included.
+
+Run `bash tests/run-now-playing-artwork.sh` and
+`bash tests/run-artwork-settings-ui.sh`. Live metadata availability remains a
+manual integration check; `--live-now-playing` exercises the bundled reader.
