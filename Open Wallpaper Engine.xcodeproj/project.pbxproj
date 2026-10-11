@@ -386,6 +386,7 @@
 				5EC47E722A2DB2E600120CCC /* Sources */,
 				5EC47E732A2DB2E600120CCC /* Frameworks */,
 				5EC47E742A2DB2E600120CCC /* Resources */,
+				CC5300000000000000000001 /* Build Media Bridge */,
 			);
 			buildRules = (
 			);
@@ -444,6 +445,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+        CC5300000000000000000001 /* Build Media Bridge */ = {
+            isa = PBXShellScriptBuildPhase;
+            buildActionMask = 2147483647;
+            files = ();
+            inputFileListPaths = ("$(SRCROOT)/scripts/media-bridge-inputs.xcfilelist",);
+            name = "Build Media Bridge";
+            outputFileListPaths = ("$(SRCROOT)/scripts/media-bridge-outputs.xcfilelist",);
+            runOnlyForDeploymentPostprocessing = 0;
+            shellPath = /bin/bash;
+            shellScript = "bash \"$SRCROOT/scripts/build-media-bridge.sh\"";
+        };
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		5EC47E722A2DB2E600120CCC /* Sources */ = {
