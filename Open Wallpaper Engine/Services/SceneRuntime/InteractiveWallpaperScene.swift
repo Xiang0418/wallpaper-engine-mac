@@ -14,11 +14,14 @@ final class InteractiveWallpaperScene: SKScene {
     private var spectrumSprites: [SKSpriteNode] = []
     var effectsDidUpdate: ((Int, [[String: Any]]) -> Void)?
     private var stopped = false
+    private let mediaConsumerID = UUID()
+    private var mediaInstalled = false
 
     override var isPaused: Bool {
         didSet {
             guard oldValue != isPaused else { return }
             lastTime = nil; cursorHistory.reset()
+            if mediaInstalled { ExternalAudioService.shared.setConsumer(mediaConsumerID, active: !isPaused && !stopped) }
             if isPaused {
                 scriptRuntime?.cancelPointer()
                 for (_, trail) in trails { trail.disconnectCursor() }
@@ -43,6 +46,8 @@ final class InteractiveWallpaperScene: SKScene {
                sprite.shader?.uniformNamed("u_audioSpectrum") != nil { spectrumSprites.append(sprite) }
 
         }
+        mediaInstalled = true
+        ExternalAudioService.shared.setConsumer(mediaConsumerID, active: !isPaused)
         // Keep the authored transform available to scripts. Viewport adaptation
         // moves a separate parent, including the cover and all sibling effects.
         var adapted = Set<ObjectIdentifier>()
@@ -136,6 +141,8 @@ final class InteractiveWallpaperScene: SKScene {
     func stop() {
         guard !stopped else { return }
         stopped = true
+        if mediaInstalled { ExternalAudioService.shared.setConsumer(mediaConsumerID, active: false) }
+        mediaInstalled = false
         cursorHistory.reset()
         scriptRuntime?.stop(); scriptRuntime = nil
         spectrumProvider = nil

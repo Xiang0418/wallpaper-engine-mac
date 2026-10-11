@@ -90,6 +90,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     
     func applicationWillTerminate(_ notification: Notification) {
+        ExternalAudioService.shared.shutdown()
         if let wallpaper = UserDefaults.standard.url(forKey: "OSWallpaper") {
             for screen in NSScreen.screens {
                 try? NSWorkspace.shared.setDesktopImageURL(wallpaper, for: screen)

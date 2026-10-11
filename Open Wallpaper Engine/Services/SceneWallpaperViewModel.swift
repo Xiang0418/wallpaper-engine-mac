@@ -307,6 +307,7 @@ class SceneWallpaperViewModel: ObservableObject {
         }
         skScene.spectrumProvider = { [weak self] in
             guard let self else { return Array(repeating:0,count:64) }
+            if ExternalAudioService.shared.systemAudioEnabled { return ExternalAudioService.shared.spectrum() }
             var mixed = [Float](repeating:0,count:64)
             for (index,source) in self.spectrumSources.enumerated() where index < self.audioPlayers.count {
                 let player = self.audioPlayers[index].0
