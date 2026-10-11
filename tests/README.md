@@ -204,3 +204,18 @@ error around 74 scene units on a radius-180 circle, while event sampling stays
 below 3 (observed 0.77). It also verifies elapsed-time conservation, backlog
 bounds and stale-input removal. Hardware cursor feel still depends on the actual
 mouse event rate and configured wallpaper FPS.
+
+## Other applications' audio spectrum
+
+Enable **Use other apps for the audio spectrum** in General settings, then grant
+Screen & System Audio Recording permission when macOS asks. ScreenCaptureKit
+provides audio from other apps, excluding this wallpaper app. Only PCM is analyzed;
+no screen output is registered and no recording is saved. Defaults remain off.
+Pausing/removing the last active scene and system sleep release the shared capture.
+Use **Retry media connection** after changing recording permission.
+
+Run `bash tests/run-external-media.sh` for multi-display resource ownership,
+sleep/wake, shutdown, antiphase stereo, stale-sample expiry and real CoreMedia
+planar/interleaved PCM conversion. Run `bash tests/run-media-settings-ui.sh` for
+light/dark settings renders. Actual TCC permission and device audio require manual
+verification; automated tests inject PCM without requesting access.

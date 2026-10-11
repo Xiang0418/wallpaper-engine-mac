@@ -9,6 +9,7 @@ import SwiftUI
 
 struct GeneralPage: SettingsPage {
     @ObservedObject var viewModel: GlobalSettingsViewModel
+    @ObservedObject private var media = ExternalAudioService.shared
     
     init(globalSettings viewModel: GlobalSettingsViewModel) {
         self.viewModel = viewModel
@@ -60,6 +61,7 @@ struct GeneralPage: SettingsPage {
             } header: {
                 Label("Audio", systemImage: "speaker.3.fill")
             }
+            ExternalAudioSettingsSection(media: media)
             // MARK: Video
             Section {
                 Picker("Video Framework", selection: $viewModel.settings.videoFramework) {
@@ -96,6 +98,7 @@ struct GeneralPage: SettingsPage {
                     Spacer()
                     Button {
                         viewModel.settings = GlobalSettings()
+                        media.systemAudioEnabled = false
                     } label: {
                         Text("Reset").frame(width: 100)
                     }
@@ -106,5 +109,31 @@ struct GeneralPage: SettingsPage {
                 Label("Reset", systemImage: "exclamationmark.triangle.fill")
             }
         }.formStyle(.grouped)
+    }
+}
+
+struct ExternalAudioSettingsSection: View {
+    @ObservedObject var media: ExternalAudioService
+    var body: some View {
+            Section {
+                Toggle("Use other apps for the audio spectrum", isOn: $media.systemAudioEnabled)
+                Text(media.audioStatus).font(.caption).foregroundStyle(.secondary)
+                Text("Audio spectrum includes all other apps and excludes this wallpaper app.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if media.systemAudioEnabled {
+                    Text("Allow access in System Settings → Privacy & Security → Screen & System Audio Recording. Audio is analyzed locally and is not saved.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if media.systemAudioEnabled {
+                    HStack {
+                        Button("Retry media connection") { media.retry() }
+                        Button("Open recording permissions") {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") { NSWorkspace.shared.open(url) }
+                        }
+                    }
+                }
+            } header: {
+                Label("Other Media Players", systemImage: "music.note")
+            }
     }
 }
