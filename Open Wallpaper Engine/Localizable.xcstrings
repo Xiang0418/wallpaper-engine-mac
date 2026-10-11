@@ -1,6 +1,329 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Use currently playing album artwork" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use currently playing album artwork"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用目前播放歌曲的封面"
+          }
+        }
+      }
+    },
+    "Use other apps for the audio spectrum" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use other apps for the audio spectrum"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讓頻譜跟隨其他 App 的音訊"
+          }
+        }
+      }
+    },
+    "Other Media Players" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other Media Players"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他音樂播放器"
+          }
+        }
+      }
+    },
+    "Album artwork follows the player shown in Control Center. Audio spectrum includes all other apps and excludes this wallpaper app." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album artwork follows the player shown in Control Center. Audio spectrum includes all other apps and excludes this wallpaper app."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封面跟隨控制中心顯示的播放器。頻譜包含其他 App 的混合音訊，不包含桌布 App 本身的聲音。"
+          }
+        }
+      }
+    },
+    "Allow access in System Settings → Privacy & Security → Screen & System Audio Recording. Audio is analyzed locally and is not saved." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow access in System Settings → Privacy & Security → Screen & System Audio Recording. Audio is analyzed locally and is not saved."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在「系統設定 → 隱私權與安全性 → 螢幕與系統音訊錄製」允許存取。音訊只在本機分析，不會儲存。"
+          }
+        }
+      }
+    },
+    "Retry media connection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry media connection"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新連接播放器"
+          }
+        }
+      }
+    },
+    "Open recording permissions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open recording permissions"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟錄製權限設定"
+          }
+        }
+      }
+    },
+    "External audio is off" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "External audio is off"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外部音訊已關閉"
+          }
+        }
+      }
+    },
+    "Requesting system audio access…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requesting system audio access…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在要求系統音訊存取權限⋯"
+          }
+        }
+      }
+    },
+    "Listening to other apps" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listening to other apps"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在分析其他 App 的音訊"
+          }
+        }
+      }
+    },
+    "System audio unavailable. Check Screen & System Audio Recording permission, then retry." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System audio unavailable. Check Screen & System Audio Recording permission, then retry."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法取得系統音訊。請確認螢幕與系統音訊錄製權限，再重新連接。"
+          }
+        }
+      }
+    },
+    "System audio stopped. Check recording permission, then retry." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System audio stopped. Check recording permission, then retry."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系統音訊擷取已停止。請確認錄製權限，再重新連接。"
+          }
+        }
+      }
+    },
+    "Album artwork is off" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album artwork is off"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歌曲封面已關閉"
+          }
+        }
+      }
+    },
+    "Waiting for a player" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for a player"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待播放器提供資訊"
+          }
+        }
+      }
+    },
+    "Player has no album artwork" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Player has no album artwork"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放器未提供封面"
+          }
+        }
+      }
+    },
+    "Album artwork connected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album artwork connected"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歌曲封面已連接"
+          }
+        }
+      }
+    },
+    "Player paused — keeping album artwork" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Player paused — keeping album artwork"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放器已暫停，保留目前封面"
+          }
+        }
+      }
+    },
+    "Album artwork unavailable. The media bridge may be incompatible with this macOS version. Retry after updating the app." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album artwork unavailable. The media bridge may be incompatible with this macOS version. Retry after updating the app."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法取得歌曲封面。媒體橋接可能與此 macOS 版本不相容，請更新 App 後重試。"
+          }
+        }
+      }
+    },
+    "Waiting for an active scene wallpaper" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for an active scene wallpaper"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待場景桌布開始播放"
+          }
+        }
+      }
+    },
     "_approved" : {
       "extractionState" : "manual",
       "localizations" : {
