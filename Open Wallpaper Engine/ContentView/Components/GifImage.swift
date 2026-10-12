@@ -28,38 +28,34 @@ struct GifImage: NSViewRepresentable {
         self.animates = animates
     }
     
-    func makeNSView(context: Context) -> NSImageView {
-        let nsView = NSImageView()
-        
-        nsView.canDrawSubviewsIntoLayer = true
-        nsView.imageScaling = .scaleProportionallyUpOrDown
-        nsView.animates = animates
-        
-        if let gifName = self.gifName {
-            if let url = Bundle.main.url(forResource: gifName, withExtension: "gif") {
-                if let image = NSImage(contentsOf: url) {
-                    let gifRep = image.representations[0] as? NSBitmapImageRep
-                    gifRep?.setProperty(.loopCount, withValue: 0)
-                    nsView.image = image
-                }
-            }
-        }
-        if let gifUrl = self.gifUrl {
-            if let image = NSImage(contentsOf: gifUrl) {
-                let gifRep = image.representations[0] as? NSBitmapImageRep
-                gifRep?.setProperty(.loopCount, withValue: 0)
-                nsView.image = image
-            }
-        }
-        
-        return nsView
+    final class Coordinator {
+        var source: URL?
     }
-    
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSImageView {
+        let view = NSImageView()
+        view.canDrawSubviewsIntoLayer = true
+        view.imageScaling = .scaleProportionallyUpOrDown
+        return view
+    }
+
     func updateNSView(_ nsView: NSImageView, context: Context) {
+        let source = gifUrl ?? gifName.flatMap { Bundle.main.url(forResource: $0, withExtension: "gif") }
+        if context.coordinator.source != source {
+            context.coordinator.source = source
+            nsView.image = source.flatMap { NSImage(contentsOf: $0) }
+            (nsView.image?.representations.first as? NSBitmapImageRep)?.setProperty(.loopCount, withValue: 0)
+        }
         nsView.animates = animates
         updateModifiers(nsView)
     }
-    
+
+    static func dismantleNSView(_ nsView: NSImageView, coordinator: Coordinator) {
+        nsView.animates = false
+        nsView.image = nil
+    }
+
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSImageView, context: Context) -> CGSize? {
         if !self.isResizable {
             return nsView.sizeThatFits(nsView.frame.size)
@@ -70,22 +66,6 @@ struct GifImage: NSViewRepresentable {
     }
     
     private func updateModifiers(_ nsView: NSImageView) {
-        if let gifName = self.gifName {
-            if let url = Bundle.main.url(forResource: gifName, withExtension: "gif") {
-                if let image = NSImage(contentsOf: url) {
-                    let gifRep = image.representations[0] as? NSBitmapImageRep
-                    gifRep?.setProperty(.loopCount, withValue: 0)
-                    nsView.image = image
-                }
-            }
-        }
-        if let gifUrl = self.gifUrl {
-            if let image = NSImage(contentsOf: gifUrl) {
-                let gifRep = image.representations[0] as? NSBitmapImageRep
-                gifRep?.setProperty(.loopCount, withValue: 0)
-                nsView.image = image
-            }
-        }
         if self.isResizable {
             switch self.contentMode {
             case .fill:

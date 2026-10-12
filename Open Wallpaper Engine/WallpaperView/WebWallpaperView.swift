@@ -22,6 +22,8 @@ struct WebWallpaperView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
+        // Wallpaper content must not share the authenticated Steam community store.
+        configuration.websiteDataStore = .nonPersistent()
         Self.enableFileAccess(on: configuration)
         configuration.allowsAirPlayForMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
