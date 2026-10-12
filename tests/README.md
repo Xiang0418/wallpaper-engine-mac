@@ -395,3 +395,119 @@ paths declared in `scripts/media-bridge-outputs.xcfilelist`. Keep that list in
 sync when changing the bundle layout; a directory output alone does not grant
 recursive write access. Verify the copied framework with `codesign --verify
 --strict` as well.
+
+## Trail performance benchmark
+
+```sh
+bash tests/run-trail-benchmark.sh
+```
+
+Requires a macOS GPU/window-server session. Builds optimized (`-O`) production
+trail code, submits through `SKRenderer` to a 1920×1080 Metal texture and waits for
+GPU completion. Each case warms up for 60 frames and measures 150 frames. It
+simulates 30 fps with eight 240 Hz mouse samples per frame: a radius-180 circle
+at one and ten revolutions/second, with the trail disabled/enabled. CPU update,
+SpriteKit update/encoding, GPU duration, synchronous total and total p95 are
+reported separately. These are unpaced offscreen timings, not desktop CPU
+percentages, battery measurements or whole-wallpaper frame times.
+
+The deterministic fixture uses the installed 3799672625 trail's pink color,
+5-unit size, 25 Hz emitter and 3→0 sizechange over half its lifetime, but fixes
+lifetime at 1.5 seconds and velocity at zero to permit image comparisons.
+It excludes background video, scripts, text and audio. PNGs preserve the final
+frame. For comparisons, compile this same harness against the baseline trail
+source and interleave baseline/current runs; do not compare cold first runs.
+
+On Apple M4 Pro, three interleaved runs on 2026-10-12 showed mean CPU update plus
+SpriteKit submission (ms/frame): ordinary movement 0.225 before / 0.204 after;
+stress 0.569 before / 0.291 after. Ordinary movement had identical 180 visible
+segments and identical final PNG pixels, so its timing difference should not be
+attributed to geometry reduction. Stress segments fell from 1439 to 724.
+Mean synchronous stress total was 0.964→0.572 ms, with substantial GPU/scheduling
+noise; this does not establish the trail as the whole application's bottleneck.
+
+Adaptive Hermite subdivision retains the existing 16-step/4096-segment limits,
+adds a 0.15-scene-pixel chord-error target where the old caps permit, and keeps
+subdivisions for width taper. Sampling frequency, particles, lifetime, beam
+texture, additive blending and colors are unchanged. The stress final PNG is
+not pixel-identical: among 6608 pixels whose before/after RGB maximum exceeds 8,
+mean maximum-channel difference was 6.94/255, and 767 differed by more than 16.
+Subpixel rasterization and overlapping additive segments can amplify small
+geometry changes. Side-by-side inspection retained the curved thin pink beam;
+the original GPU luminous-core-width test and runtime trajectory checks passed.
+
+## Workshop author-image previews
+
+Run `python3 tests/run-workshop-preview.py` in a macOS GUI session. The test
+compiles the production preview components with a minimal item model, starts a
+loopback HTTP fixture on an ephemeral port, verifies a two-frame GIF actually
+advances and remains paused without replacing its NSImage, rejects HTTP errors
+and oversized responses, and writes light/dark snapshots to `build/preview-tests`.
+Visible Workshop GIF thumbnails autoplay; clicking enlarges the author image,
+not a scene player. Static images have no play control. Closing cancels the download
+and tears down animation; reduced motion starts previews paused. Downloads are
+bounded to 16 MiB, estimated decoded frames to 128 MiB, and failures offer Retry.
+Live Steam CDN coverage depends on each author's supplied preview format.
+
+Installed-list previews also autoplay while visible (unless Reduce Motion is
+on). They no longer depend on the legacy `TestAnimates` demo preference.
+`GifImage` keeps the same NSImage across unrelated view updates and releases it
+when dismantled. To verify actual native frame advancement and pause stability:
+
+```sh
+xcrun swiftc -parse-as-library \
+  'Open Wallpaper Engine/ContentView/Components/GifImage.swift' \
+  tests/InstalledPreviewTests.swift -o /tmp/we-installed-preview-tests
+/tmp/we-installed-preview-tests /absolute/path/to/animated-preview.gif
+```
+
+## Steam community subscriptions
+
+Run `python3 tests/run-steam-community.py` to check Steam-only navigation,
+account-relative subscription URLs, and rejection of malformed item IDs.
+The app opens Steam's official login only when a native Subscribe action needs
+an authenticated community session. There is no separate Steam Community tab or
+View on Steam card button. Signing in does not automatically subscribe; close
+the login sheet and press Subscribe again. Check this path manually when signed
+out, then verify subsequent card clicks subscribe directly.
+
+Native subscription buttons: run `python3 tests/run-steam-subscriptions.py`.
+This compiles the production request builder/parser with synthetic credentials;
+it checks cookie domain isolation, expiry, form encoding, item IDs, login redirects,
+Steam rejection codes, and success validation without sending subscriptions.
+The card's Subscribe action uses Steam Community login, independently of SteamCMD.
+Signed-out users are shown Steam login and can press Subscribe again after login.
+A success label is shown only after Steam returns success=1. Repeating the action
+subscribes again; it never toggles to unsubscribe. Only the selected item is sent
+(include_dependencies=false). Cookie/account changes clear cached action results.
+Manual checks still required: authenticated subscription, logout/account switching,
+and confirmation in the Windows account's subscribed Workshop list.
+
+## Workshop filters
+
+`python3 tests/run-workshop-filters.py` checks exclusive rating/type/resolution
+choices, inclusion/exclusion conflicts, reset, required/excluded API parameters,
+latest-search-wins behavior and pagination retry without network access.
+Pagination retains the submitted search even while the user types a new draft.
+The sidebar uses Steam's canonical tags, including the Ultrawide/Portrait/Dual/
+Triple prefixes. Required tags use AND; excluded tags must not occur. Rating,
+type, category and resolution each allow one selection. Genres and features
+allow multiple required or excluded tags. Clear All removes every filter;
+Reset restores the default Everyone rating. Verify authenticated live searches
+with a Steam Web API key separately; tests use fixture responses.
+
+### Shared engine assets
+
+- `bash tests/run-scene-assets.sh`: source precedence across filename candidates, Windows path normalization, missing-file deduplication, path confinement, managed copies and failed-import preservation.
+- `bash tests/run-shared-asset-rendering.sh`: synthetic scenes load shared models/materials/PNG/rope particles, reload after installation, classify missing vs invalid assets, and stop without stale reports.
+- `bash tests/run-engine-assets-service.sh`: fake SteamCMD checks Windows/App 431960/depot 431961 arguments, paths with spaces, mutual exclusion with Workshop downloads, activation and failure preservation. No Steam account or network needed.
+- `bash tests/run-engine-assets-ui.sh`: render the settings section at 500 × 600 in light/dark mode; screenshots are `/tmp/we-assets-settings-{light,dark}.png`.
+- `bash tests/run-steam-download.sh`: also covers app-install/depot success markers and rejection of stale files / mismatched app or depot IDs.
+
+The scene/GPU/UI tests require macOS graphics services. These fixtures do not redistribute proprietary Wallpaper Engine assets. Live Steam authentication, ownership and network download need a manual end-to-end check with a licensed account.
+
+### Sprite video, particles and audio bars
+
+`bash tests/run-scene-sprite-effects.sh "/path/to/3817518265"` uses the locally installed wallpaper (assets are not checked in). Requires a macOS graphical session/GPU. Verifies embedded MP4 sprite frames, pause/resume/cleanup, firefly prewarm and cherry textures, bounded particle counts and expiry after cursor departure, live size overrides, and pixel coverage for silent versus active audio bars. Writes a visual check to `/tmp/we-sprite-effects.png` and rejects shader compilation failures. Also asserts virtual framebuffer resources are not reported as missing files.
+
+The sprite-effects harness also checks all three audio selections plus Off, live style 1/3 parameters, and GPU signal response for both rounded-bar layers and the gradient curve/fisheye pipeline. Rendered samples are written to `/tmp/we-audio-style-1.png`, `/tmp/we-audio-style-11.png` (top bars), and `/tmp/we-audio-style-3.png`.
