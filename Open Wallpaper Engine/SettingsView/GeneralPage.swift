@@ -61,6 +61,7 @@ struct GeneralPage: SettingsPage {
             } header: {
                 Label("Audio", systemImage: "speaker.3.fill")
             }
+            EngineAssetsSettingsSection(assets: .shared, steam: AppDelegate.shared.contentViewModel.steamCmd)
             ExternalMediaSettingsSection(media: media)
             // MARK: Video
             Section {

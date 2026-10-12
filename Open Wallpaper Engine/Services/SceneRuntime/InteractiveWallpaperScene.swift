@@ -8,13 +8,21 @@ final class InteractiveWallpaperScene: SKScene {
     var spectrumProvider: (() -> [Float])?
     private var lastTime: TimeInterval?
     private var cursorHistory = SceneCursorHistory()
+    private var spriteParticles: [SceneSpriteParticles] = []
+    func bindParticles(_ system: SceneSpriteParticles) { spriteParticles.append(system) }
     private var trails: [(SKNode, SceneRopeTrail)] = []
     private var previousSpectrum: [Float]?
     private var audioOverlays: [(wrapper: SKNode, root: SKNode)] = []
     private var spectrumSprites: [SKSpriteNode] = []
     var effectsDidUpdate: ((Int, [[String: Any]]) -> Void)?
     private var stopped = false
+    private var videoPlaybackRate: Float = 1
+    func setVideoPlaybackRate(_ rate: Float) {
+        videoPlaybackRate = rate
+        for (_, video) in videoSprites { video.player.rate = isPaused || stopped ? 0 : rate }
+    }
     private var textureAnimations: [(SKSpriteNode, SceneTextureAnimation)] = []
+    private var videoSprites: [(SKSpriteNode, SceneVideoTexture)] = []
     private var scrollSprites: [SKSpriteNode] = []
     private var effectTime: Double = 0
     private let mediaConsumerID = UUID()
@@ -34,6 +42,7 @@ final class InteractiveWallpaperScene: SKScene {
         didSet {
             guard oldValue != isPaused else { return }
             lastTime = nil; cursorHistory.reset()
+            setVideoPlaybackRate(videoPlaybackRate)
             if mediaInstalled { ExternalMediaService.shared.setConsumer(mediaConsumerID, active: !isPaused && !stopped) }
             if isPaused {
                 scriptRuntime?.cancelPointer()
@@ -56,6 +65,7 @@ final class InteractiveWallpaperScene: SKScene {
                 addChild(trail); trails.append((node, trail))
             }
             if let sprite = contentNodes[id] as? SKSpriteNode {
+                if let video = sprite.userData?["videoTexture"] as? SceneVideoTexture { videoSprites.append((sprite, video)) }
                 if sprite.userData?["mediaThumbnail"] as? Bool == true { mediaBindings.append(SceneMediaArtworkBinding(sprite: sprite)) }
                 if sprite.shader?.uniformNamed("u_audioSpectrum") != nil { spectrumSprites.append(sprite) }
                 if sprite.shader?.uniformNamed("u_scrollTime") != nil { scrollSprites.append(sprite) }
@@ -98,6 +108,7 @@ final class InteractiveWallpaperScene: SKScene {
         for (node, animation) in textureAnimations where !(node.userData?["mediaThumbnail"] as? Bool == true && media.artworkTexture != nil) {
             animation.advance(dt); node.texture = animation.texture
         }
+        for (sprite, video) in videoSprites { video.update(sprite) }
         effectTime += dt
         for sprite in scrollSprites { sprite.shader?.uniformNamed("u_scrollTime")?.floatValue = Float(effectTime) }
         var point: CGPoint?
@@ -112,6 +123,12 @@ final class InteractiveWallpaperScene: SKScene {
             artworkRevision = media.artworkRevision
         }
         updateViewportLayout()
+        for system in spriteParticles {
+            var ancestor: SKNode? = system
+            var hidden = false
+            while let node = ancestor { hidden = hidden || node.isHidden; ancestor = node.parent }
+            if !hidden { system.advance(delta: dt, cursor: point.map { system.convert($0, from: self) }) }
+        }
         let samples = cursorHistory.consume(until: ProcessInfo.processInfo.systemUptime, frameDuration: dt, current: point)
         for (node, trail) in trails {
             var hidden = node.isHidden
@@ -174,7 +191,8 @@ final class InteractiveWallpaperScene: SKScene {
         scriptRuntime?.stop(); scriptRuntime = nil
         spectrumProvider = nil
         textureAnimations.removeAll(); scrollSprites.removeAll()
-        trails.removeAll(); spectrumSprites.removeAll(); audioOverlays.removeAll(); removeAllActions()
+        videoSprites.forEach { $0.1.stop() }; videoSprites.removeAll()
+        spriteParticles.removeAll(); trails.removeAll(); spectrumSprites.removeAll(); audioOverlays.removeAll(); removeAllActions()
     }
 
     override func willMove(from view: SKView) { stop() }

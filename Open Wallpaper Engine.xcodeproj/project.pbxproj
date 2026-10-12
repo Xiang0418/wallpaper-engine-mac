@@ -65,6 +65,8 @@
 		CC3200000000000000000001 /* SceneRuntime/SceneScriptRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3100000000000000000001 /* SceneRuntime/SceneScriptRuntime.swift */; };
 		CC3200000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3100000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift */; };
 		CC3200000000000000000003 /* SceneRuntime/SceneRopeTrail.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3100000000000000000003 /* SceneRuntime/SceneRopeTrail.swift */; };
+		CD4200000000000000000001 /* SceneRuntime/SceneVideoTexture.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4100000000000000000001 /* SceneRuntime/SceneVideoTexture.swift */; };
+		CD4200000000000000000002 /* SceneRuntime/SceneSpriteParticles.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4100000000000000000002 /* SceneRuntime/SceneSpriteParticles.swift */; };
 		CC3200000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3100000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift */; };
 		CC3200000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3100000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift */; };
 		DAEE29C62A9CB52100633898 /* WebWallpaperViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAEE29C52A9CB52100633898 /* WebWallpaperViewModel.swift */; };
@@ -75,6 +77,9 @@
 		CC5200000000000000000002 /* NowPlayingBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5100000000000000000002; };
 		CC5200000000000000000003 /* ExternalMediaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5100000000000000000003; };
 		CC5200000000000000000004 /* SceneMediaArtworkBinding.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5100000000000000000004; };
+		EE60000000000000000000001 /* SceneParsers/SceneAssetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE60000000000000000000002; };
+		EE60000000000000000000011 /* EngineAssetsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE60000000000000000000012; };
+		EE60000000000000000000021 /* EngineAssetsSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE60000000000000000000022; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -149,6 +154,8 @@
 		CC3100000000000000000001 /* SceneRuntime/SceneScriptRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneScriptRuntime.swift; sourceTree = "<group>"; };
 		CC3100000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneAudioSpectrum.swift; sourceTree = "<group>"; };
 		CC3100000000000000000003 /* SceneRuntime/SceneRopeTrail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneRopeTrail.swift; sourceTree = "<group>"; };
+		CD4100000000000000000001 /* SceneRuntime/SceneVideoTexture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneVideoTexture.swift; sourceTree = "<group>"; };
+		CD4100000000000000000002 /* SceneRuntime/SceneSpriteParticles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneSpriteParticles.swift; sourceTree = "<group>"; };
 		CC3100000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/InteractiveWallpaperScene.swift; sourceTree = "<group>"; };
 		CC3100000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneSpectrumTexture.swift; sourceTree = "<group>"; };
 		DAEE29C52A9CB52100633898 /* WebWallpaperViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebWallpaperViewModel.swift; sourceTree = "<group>"; };
@@ -159,6 +166,9 @@
 		CC5100000000000000000002 /* NowPlayingBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/NowPlayingBridge.swift; sourceTree = "<group>"; };
 		CC5100000000000000000003 /* ExternalMediaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/ExternalMediaService.swift; sourceTree = "<group>"; };
 		CC5100000000000000000004 /* SceneMediaArtworkBinding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/SceneMediaArtworkBinding.swift; sourceTree = "<group>"; };
+		EE60000000000000000000002 /* SceneParsers/SceneAssetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SceneParsers/SceneAssetResolver.swift"; sourceTree = "<group>"; };
+		EE60000000000000000000012 /* EngineAssetsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EngineAssetsService.swift"; sourceTree = "<group>"; };
+		EE60000000000000000000022 /* EngineAssetsSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EngineAssetsSettingsSection.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -249,6 +259,8 @@
 				CC5100000000000000000004 /* SceneMediaArtworkBinding.swift */,
 				CC3100000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift */,
 				CC3100000000000000000003 /* SceneRuntime/SceneRopeTrail.swift */,
+				CD4100000000000000000001 /* SceneRuntime/SceneVideoTexture.swift */,
+				CD4100000000000000000002 /* SceneRuntime/SceneSpriteParticles.swift */,
 				CC3100000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift */,
 				CC3100000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift */,
 				5E51A43B2AA33F5500E46E99 /* GlobalSettingsService.swift */,
@@ -257,6 +269,8 @@
 				CC0000000000000000000002 /* WallpaperDirectory.swift */,
 				CC0000000000000000000004 /* ZipImporter.swift */,
 				CC0000000000000000000006 /* SteamCmdService.swift */,
+				EE60000000000000000000012 /* EngineAssetsService.swift */,
+				EE60000000000000000000002 /* SceneParsers/SceneAssetResolver.swift */,
 				DD0900000000000000000002 /* SteamDownloadProcess.swift */,
 				CC0000000000000000000008 /* WorkshopAPIService.swift */,
 				CC000000000000000000000A /* WorkshopViewModel.swift */,
@@ -270,6 +284,7 @@
 				5EDEBA5D2A2E2A7B003470CB /* SettingsView.swift */,
 				5EAF3F6F2A870DEC00F85685 /* PerformancePage.swift */,
 				5EAF3F712A870ED400F85685 /* GeneralPage.swift */,
+				EE60000000000000000000022 /* EngineAssetsSettingsSection.swift */,
 				5EAF3F732A87110700F85685 /* PluginsPage.swift */,
 				5E7665292A2E231400E0E4B4 /* AboutUsView.swift */,
 			);
@@ -529,12 +544,17 @@
 				CC5200000000000000000004 /* SceneMediaArtworkBinding.swift in Sources */,
 				CC3200000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift in Sources */,
 				CC3200000000000000000003 /* SceneRuntime/SceneRopeTrail.swift in Sources */,
+				CD4200000000000000000001 /* SceneRuntime/SceneVideoTexture.swift in Sources */,
+				CD4200000000000000000002 /* SceneRuntime/SceneSpriteParticles.swift in Sources */,
 				CC3200000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift in Sources */,
 				CC3200000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift in Sources */,
 				BB0000000000000000000003 /* ObjCExceptionCatcher.m in Sources */,
 				CC0000000000000000000001 /* WallpaperDirectory.swift in Sources */,
 				CC0000000000000000000003 /* ZipImporter.swift in Sources */,
 				CC0000000000000000000005 /* SteamCmdService.swift in Sources */,
+				EE60000000000000000000021 /* EngineAssetsSettingsSection.swift in Sources */,
+				EE60000000000000000000011 /* EngineAssetsService.swift in Sources */,
+				EE60000000000000000000001 /* SceneParsers/SceneAssetResolver.swift in Sources */,
 				DD0900000000000000000001 /* SteamDownloadProcess.swift in Sources */,
 				CC0000000000000000000007 /* WorkshopAPIService.swift in Sources */,
 				CC0000000000000000000009 /* WorkshopViewModel.swift in Sources */,

@@ -224,6 +224,9 @@ final class SceneScriptRuntime {
             node.xScale = number(scale?.forProperty("x"), 1)
             node.yScale = number(scale?.forProperty("y"), 1)
             node.zRotation = number(state.forProperty("angles")?.forProperty("z"), 0) * .pi / 180
+            if let overrides = state.forProperty("instanceoverride")?.toDictionary() as? [String:Any] {
+                node.children.compactMap { $0 as? SceneSpriteParticles }.forEach { $0.applyOverrides(overrides) }
+            }
             let content = contentNodes[id] ?? node
             content.alpha = min(1, max(0, number(state.forProperty("alpha"), 1)))
             node.isHidden = !(state.forProperty("visible")?.toBool() ?? true)

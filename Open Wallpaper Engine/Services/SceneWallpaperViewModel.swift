@@ -36,9 +36,14 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     private var fontCache: [String: NSFont] = [:]
     private var textureCache: [String: NSImage] = [:]
     private var animationCache: [String: TEXAnimation] = [:]
+    private var videoTextures: [String: SceneVideoTexture] = [:]
     private var pendingAnimations: [(SKSpriteNode, [SKTexture], [Double])] = []
     private(set) var renderingWarnings: [String] = []
     private var pkgParser: PKGParser?
+    private var assetResolver: SceneAssetResolver?
+    private let diagnosticID = UUID()
+    private var isActive = false
+    private let sharedAssets: () -> URL?
     private var rawObjects: [[String: Any]] = []
     private var spectrumSources: [SceneAudioSpectrumSource?] = []
     private var videoPlayer: AVQueuePlayer?
@@ -48,6 +53,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     private var restartVideo: (() -> Void)?
     private var videoRecoveryAttempts = 0
     private weak var videoNode: SKVideoNode?
+    private weak var videoPoster: SKSpriteNode?
     private var audioPlayers: [(AVAudioPlayer, Float)] = []
     private var temporaryDirectory: URL?
     private var cancellables = Set<AnyCancellable>()
@@ -69,6 +75,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     private weak var errorNode: SKLabelNode?
 
     func stop() {
+        isActive = false
         (skScene as? InteractiveWallpaperScene)?.stop()
         spectrumSources.forEach { $0?.stop() }; spectrumSources.removeAll()
         rawObjects.removeAll()
@@ -80,6 +87,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         restartVideo = nil
         videoRecoveryAttempts = 0
         videoNode = nil
+        videoPoster = nil
         videoPlayer?.pause()
         videoLooper?.disableLooping()
         videoPlayer?.removeAllItems()
@@ -92,8 +100,11 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         fontCache.removeAll()
         textureCache.removeAll()
         animationCache.removeAll(); pendingAnimations.removeAll()
+        videoTextures.values.forEach { $0.stop() }; videoTextures.removeAll()
         renderingWarnings.removeAll()
         pkgParser = nil
+        assetResolver = nil
+        SceneAssetDiagnostics.shared.remove(diagnosticID)
         if let directory = temporaryDirectory {
             do { try FileManager.default.removeItem(at: directory) }
             catch { Self.log("Temporary media cleanup failed: \(error)") }
@@ -105,6 +116,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     private func applyPlayback() {
         let rate: Float = (sleeping || policyPaused) ? 0 : playRate
         videoPlayer?.rate = rate
+        videoTextures.values.forEach { $0.player.rate = rate }
         videoPlayer?.volume = audioEnabled && !policyMuted ? playVolume : 0
         for (player, volume) in audioPlayers {
             player.volume = audioEnabled && !policyMuted ? volume * playVolume : 0
@@ -112,6 +124,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
             else { player.rate = rate; if !player.isPlaying { player.play() } }
         }
         skScene?.isPaused = rate == 0
+        (skScene as? InteractiveWallpaperScene)?.setVideoPlaybackRate(rate)
     }
 
     private func mediaURL(data: Data, extension ext: String) throws -> URL {
@@ -129,11 +142,13 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         Self.log(message)
         errorNode?.text = message
         errorNode?.isHidden = false
-        fallbackNode?.isHidden = false
+        if let videoPoster { videoPoster.isHidden = false; fallbackNode?.isHidden = true }
+        else { fallbackNode?.isHidden = false }
     }
 
 
-    init(wallpaper: WEWallpaper, screenId: String = UUID().uuidString) {
+    init(wallpaper: WEWallpaper, screenId: String = UUID().uuidString, sharedAssets: @escaping () -> URL? = { EngineAssetLibrary.standard.activeRoot }) {
+        self.sharedAssets = sharedAssets
         self.screenId = screenId
         self.currentWallpaper = wallpaper
         Self.log("init: wallpaper=\(wallpaper.project.title ?? "?") dir=\(wallpaper.wallpaperDirectory.path)")
@@ -152,6 +167,12 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
             self?.playRate = value
             self?.applyPlayback()
         }.store(in: &cancellables)
+        NotificationCenter.default.publisher(for: EngineAssetLibrary.didChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self, self.isActive else { return }
+                self.loadScene(from: self.currentWallpaper)
+            }.store(in: &cancellables)
         loadScene(from: wallpaper)
     }
 
@@ -165,6 +186,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
 
     func loadScene(from wallpaper: WEWallpaper) {
         stop()
+        isActive = true
         WallpaperPlaybackSessions.shared.register(self, screenId: screenId)
         volumeSubscription = AppDelegate.shared.wallpaperViewModel.volumePublisher(for: wallpaper)
             .sink { [weak self] volume in
@@ -177,31 +199,26 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         // Derive PKG name from scene file: "scene.json" → "scene.pkg", "gifscene.json" → "gifscene.pkg"
         let pkgName = (sceneFile as NSString).deletingPathExtension + ".pkg"
         let pkgURL = dir.appending(path: pkgName)
-        let looseSceneURL = dir.appending(path: sceneFile)
-
         var scene: WEScene?
         var loadError = "Scene file not found: " + sceneFile
-
-        if FileManager.default.fileExists(atPath: pkgURL.path(percentEncoded: false)) {
-            do {
-                let parser = try PKGParser(url: pkgURL)
-                self.pkgParser = parser
-                if let data = parser.extractFile(named: sceneFile) {
-                    scene = try WEScene.decode(data: data, projectData: try? Data(contentsOf: dir.appendingPathComponent("project.json")))
-                }
-            } catch {
+        var packageError: String?
+        if FileManager.default.fileExists(atPath: pkgURL.path) {
+            do { pkgParser = try PKGParser(url: pkgURL) }
+            catch { loadError = error.localizedDescription; packageError = loadError }
+        }
+        let resolver = SceneAssetResolver(wallpaperRoot: dir, package: pkgParser, sharedRoot: sharedAssets())
+        assetResolver = resolver
+        resolver.didReport = { [weak self] issues in
+            guard let self else { return }
+            SceneAssetDiagnostics.shared.update(self.diagnosticID,
+                wallpaper: wallpaper.project.title ?? dir.lastPathComponent, issues: issues)
+        }
+        if let packageError { resolver.report(.invalid, pkgName, packageError) }
+        if let data = resolver.data(sceneFile, required: true) {
+            do { scene = try WEScene.decode(data: data, projectData: resolver.data("project.json")) }
+            catch {
                 loadError = error.localizedDescription
-                Self.log("Failed to parse PKG: \(error)")
-            }
-        } else if FileManager.default.fileExists(atPath: looseSceneURL.path(percentEncoded: false)) {
-            // Loose files (no .pkg)
-            self.pkgParser = nil
-            do {
-                let data = try Data(contentsOf: looseSceneURL)
-                scene = try WEScene.decode(data: data, projectData: try? Data(contentsOf: dir.appendingPathComponent("project.json")))
-            } catch {
-                loadError = error.localizedDescription
-                Self.log("Failed to parse loose \(sceneFile): \(error)")
+                resolver.report(.invalid, sceneFile, loadError)
             }
         }
 
@@ -296,17 +313,31 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         for (index, object) in scene.objects.enumerated() {
             let holder = containers[index]
             if index == backgroundIndex && buildVideoNode(object, in: skScene, wallpaperDir: wallpaperDir) {
-                if let video = skScene.children.last as? SKVideoNode {
+                if let video = videoNode {
                     video.removeFromParent(); video.position = .zero
                     video.xScale = 1; video.yScale = 1; video.zRotation = 0
                     video.zPosition = CGFloat(index + 1)
                     holder.addChild(video)
+                    if let poster = videoPoster {
+                        poster.removeFromParent(); poster.position = .zero
+                        poster.xScale = 1; poster.yScale = 1; poster.zRotation = 0
+                        poster.zPosition = video.zPosition - 0.01
+                        holder.addChild(poster)
+                    }
                 }
             } else if let image = buildImageNode(object, wallpaperDir: wallpaperDir) {
                 image.position = .zero
                 image.zPosition = CGFloat(index + 1)
                 holder.addChild(image)
                 if index == backgroundIndex { fallbackNode?.isHidden = true }
+            } else if let path = object.particle {
+                if let system = buildSpriteParticles(path: path, overrides: rawObjects[index]["instanceoverride"] as? [String: Any] ?? [:], wallpaperDir: wallpaperDir) {
+                    system.zPosition = CGFloat(index + 1)
+                    holder.addChild(system); skScene.bindParticles(system); system.prewarm()
+                } else if let particle: WEParticleSystem = loadJSON(path: path, wallpaperDir: wallpaperDir),
+                   particle.renderer?.contains(where: { $0.name == "rope" }) != true {
+                    warn("Unsupported particle renderer: " + path)
+                }
             } else if object.text != nil {
                 let text = buildTextNode(object, wallpaperDir: wallpaperDir)
                 text.zPosition = CGFloat(index + 1); holder.addChild(text)
@@ -322,7 +353,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         let properties = ScenePropertyStore.shared.values(at: wallpaperDir)
         skScene.install(objects:rawObjects,nodes:nodes,contentNodes:contentNodes,properties:properties,
                         storageKey:wallpaperDir.standardizedFileURL.path) { [weak self] path in
-            self?.assetData(path,wallpaperDir:wallpaperDir)
+            self?.assetResolver?.data(path, required: true)
         }
         propertySubscription = NotificationCenter.default.publisher(for: ScenePropertyStore.didChange)
             .receive(on: DispatchQueue.main)
@@ -374,8 +405,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     }
 
     private func assetData(_ path: String, wallpaperDir: URL) -> Data? {
-        if let data = pkgParser?.extractFile(named: path) { return Data(data) }
-        return try? Data(contentsOf: wallpaperDir.appendingPathComponent(path))
+        assetResolver?.data(path)
     }
 
     private func buildVideoNode(_ object: WESceneObject, in scene: SKScene, wallpaperDir: URL) -> Bool {
@@ -384,21 +414,18 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
               let materialPath = model.material,
               let material: WEMaterial = loadJSON(path: materialPath, wallpaperDir: wallpaperDir),
               let name = material.passes?.first?.textures?.first ?? nil else { return false }
-        let directory = (materialPath as NSString).deletingLastPathComponent
-        for path in [directory + "/" + name + ".tex", "materials/" + name + ".tex", name + ".tex"] {
-            guard let data = assetData(path, wallpaperDir: wallpaperDir),
-                  let video = TEXParser(data: data).extractVideoData() else { continue }
-            do {
-                let url = try mediaURL(data: video, extension: "mp4")
-                restartVideo = { [weak self, weak scene] in
-                    guard let self, let scene else { return }
-                    self.installVideo(object, url: url, in: scene)
-                }
-                installVideo(object, url: url, in: scene)
-            } catch { reportFailure("Video extraction failed: " + error.localizedDescription) }
-            return true
-        }
-        return false
+        guard let asset = assetResolver?.asset(candidates: textureCandidates(name: name, materialPath: materialPath)),
+              asset.path.lowercased().hasSuffix(".tex"),
+              let video = TEXParser(data: asset.data).extractVideoData() else { return false }
+        do {
+            let url = try mediaURL(data: video, extension: "mp4")
+            restartVideo = { [weak self, weak scene] in
+                guard let self, let scene else { return }
+                self.installVideo(object, url: url, in: scene)
+            }
+            installVideo(object, url: url, in: scene)
+        } catch { reportFailure("Video extraction failed: " + error.localizedDescription) }
+        return true
     }
 
     /// Rebuild failed AVFoundation objects without reloading scripts or music.
@@ -448,6 +475,23 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
             }
         } else { scene.addChild(node) }
         videoNode = node
+        // A low-resolution workshop preview must not remain the desktop while
+        // playback is paused or the queue is still preparing its first frame.
+        if videoPoster == nil {
+            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+            generator.appliesPreferredTrackTransform = true
+            if let image = try? generator.copyCGImage(at: .zero, actualTime: nil) {
+                let poster = SKSpriteNode(texture: SKTexture(cgImage: image))
+                poster.name = "background-video-poster"
+                poster.size = node.size; poster.position = node.position
+                poster.xScale = node.xScale; poster.yScale = node.yScale
+                poster.zRotation = node.zRotation; poster.alpha = node.alpha
+                poster.zPosition = node.zPosition - 0.01
+                (node.parent ?? scene).addChild(poster)
+                videoPoster = poster
+                fallbackNode?.isHidden = true
+            }
+        }
         var elapsed = 0.0
         var healthyTime = 0.0
         var hasFrame = false
@@ -494,6 +538,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
             if let output = self.videoOutput,
                output.copyPixelBuffer(forItemTime: current.currentTime(), itemTimeForDisplay: nil) != nil {
                 node?.isHidden = false
+                self.videoPoster?.isHidden = true
                 self.fallbackNode?.isHidden = true
                 self.errorNode?.text = self.audioError
                 self.errorNode?.isHidden = self.audioError == nil
@@ -508,7 +553,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         for object in scene.objects where object.visible != false && object.startsilent != true {
             guard let path = object.sound?.first else { continue }
             do {
-                guard let data = assetData(path, wallpaperDir: wallpaperDir) else {
+                guard let data = assetResolver?.data(path, required: true) else {
                     throw CocoaError(.fileReadNoSuchFile)
                 }
                 let url = try mediaURL(data: data, extension: (path as NSString).pathExtension)
@@ -571,6 +616,9 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
             if let first = frames.first { texture = first }
         }
         let node = SKSpriteNode(texture: texture)
+        if let video = videoTextures[materialPath + "|" + textureName] {
+            node.userData = NSMutableDictionary(); node.userData?["videoTexture"] = video
+        }
         if let animation, !frames.isEmpty {
             pendingAnimations.append((node, frames, animation.frames.map(\.duration)))
         }
@@ -626,6 +674,11 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
 
     private func warn(_ message: String) {
         if !renderingWarnings.contains(message) { renderingWarnings.append(message); Self.log(message) }
+        if message.hasPrefix("Unsupported") || message.hasPrefix("Unknown built-in") {
+            assetResolver?.report(.unsupported, message, "The renderer does not support this feature yet")
+        } else if message.hasPrefix("Approximate") {
+            assetResolver?.report(.approximate, message, "Using a generated substitute")
+        }
     }
 
     private func anchorPoint(_ alignment: String?) -> CGPoint {
@@ -638,7 +691,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         var font = NSFont.systemFont(ofSize: object.pointsize ?? 24)
         if let path = object.font {
             if let cached = fontCache[path] { font = cached }
-            else if let bytes = assetData(path, wallpaperDir: wallpaperDir),
+            else if let bytes = assetResolver?.data(path, required: true),
                     let provider = CGDataProvider(data: bytes as CFData), let cgFont = CGFont(provider) {
                 // An in-memory font avoids global registration conflicts across displays.
                 font = CTFontCreateWithGraphicsFont(cgFont, 24, nil, nil) as NSFont
@@ -663,6 +716,34 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     }
 
     // MARK: - Particle Objects
+
+    private func buildSpriteParticles(path: String, overrides: [String: Any], wallpaperDir: URL, depth: Int = 0) -> SceneSpriteParticles? {
+        guard depth < 2, let data = assetResolver?.data(path, required: true),
+              let definition = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let renderers = definition["renderer"] as? [[String: Any]],
+              !renderers.isEmpty, renderers.allSatisfy({ ["sprite", "spritetrail"].contains($0["name"] as? String ?? "") }),
+              let materialPath = definition["material"] as? String,
+              let material: WEMaterial = loadJSON(path: materialPath, wallpaperDir: wallpaperDir),
+              let name = material.passes?.first?.textures?.first ?? nil,
+              let image = loadTexture(named: name, materialDir: materialPath, wallpaperDir: wallpaperDir) else { return nil }
+        var textures = [SKTexture(image: image)]
+        if let animation = animationCache[materialPath + "|" + name] {
+            let atlases = animation.images.map(SKTexture.init(image:))
+            textures = animation.frames.map { SKTexture(rect: $0.rect, in: atlases[$0.imageIndex]) }
+        }
+        let children = definition["children"] as? [[String: Any]] ?? []
+        // Texture loading is cached. A per-parent child simulation preserves eventfollow trails.
+        let system = SceneSpriteParticles(definition: definition, textures: textures,
+            additive: material.passes?.first?.blending == "additive", overrides: overrides,
+            children: children.isEmpty ? nil : { [weak self] in
+                children.compactMap { child in
+                    guard child["type"] as? String == "eventfollow", let path = child["name"] as? String else { return nil }
+                    return self?.buildSpriteParticles(path: path, overrides: overrides, wallpaperDir: wallpaperDir, depth: depth+1)
+                }
+            })
+        assetResolver?.report(.approximate, path, "2D sprite particle simulation; turbulence, sequence mapping and trail motion may differ from Wallpaper Engine")
+        return system
+    }
 
     private func buildParticleNode(_ obj: WESceneObject, wallpaperDir: URL, sceneSize: CGSize) -> SKNode? {
         guard let particlePath = obj.particle else { return nil }
@@ -824,19 +905,58 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     // MARK: - Asset Loading
 
     private func loadJSON<T: Decodable>(path: String, wallpaperDir: URL) -> T? {
-        // Try PKG first
-        if let parser = pkgParser, let data = parser.extractFile(named: path) {
-            return try? JSONDecoder().decode(T.self, from: data)
+        guard !path.isEmpty, let data = assetResolver?.data(path, required: true) else { return nil }
+        do { return try JSONDecoder().decode(T.self, from: data) }
+        catch {
+            assetResolver?.report(.invalid, path, "Invalid or unsupported JSON: " + error.localizedDescription)
+            return nil
         }
-        // Fall back to loose file
-        let url = wallpaperDir.appending(path: path)
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? JSONDecoder().decode(T.self, from: data)
+    }
+
+    private func textureCandidates(name: String, materialPath: String) -> [String] {
+        let materialPath = materialPath.replacingOccurrences(of: "\\", with: "/")
+        let directory = (materialPath as NSString).deletingLastPathComponent
+        let bases = [directory.isEmpty ? name : directory + "/" + name, "materials/" + name, name]
+        var candidates = bases.map { $0 + ".tex" } + bases
+        for ext in ["png", "jpg", "jpeg", "gif"] { candidates += bases.map { $0 + "." + ext } }
+        return candidates
     }
 
     private func loadTexture(named name: String, materialDir: String, wallpaperDir: URL) -> NSImage? {
         let cacheKey = materialDir + "|" + name
         if let cached = textureCache[cacheKey] { return cached }
+        if name.split(separator: "/").last?.hasPrefix("_rt_") == true {
+            assetResolver?.report(.unsupported, name, "Runtime render target requires a framebuffer pass; it is not a downloadable file")
+            return nil
+        }
+        let candidates = textureCandidates(name: name, materialPath: materialDir)
+        if let asset = assetResolver?.asset(candidates: candidates) {
+            if asset.path.lowercased().hasSuffix(".tex") {
+                let parser = TEXParser(data: asset.data)
+                if let data = parser.extractVideoData() {
+                    do {
+                        let video = try SceneVideoTexture(url: mediaURL(data: data, extension: "mp4"))
+                        videoTextures[cacheKey] = video; textureCache[cacheKey] = video.poster
+                        return video.poster
+                    } catch {
+                        assetResolver?.report(.invalid, asset.path, "Video texture decoding failed: " + error.localizedDescription)
+                        return nil
+                    }
+                }
+                if let animation = parser.extractAnimation() {
+                    animationCache[cacheKey] = animation
+                    textureCache[cacheKey] = animation.images[0]
+                    return animation.images[0]
+                }
+                if let image = parser.extractImage() { textureCache[cacheKey] = image; return image }
+            } else if let image = NSImage(data: asset.data) {
+                textureCache[cacheKey] = image
+                return image
+            }
+            assetResolver?.report(.invalid, asset.path, "Texture format is invalid or unsupported")
+        } else if name != "util/white" {
+            _ = assetResolver?.asset(candidates: candidates, required: true)
+        }
         if name == "util/white" {
             let image = NSImage(size: CGSize(width: 1, height: 1), flipped: false) { rect in
                 NSColor.white.setFill(); rect.fill(); return true
@@ -850,70 +970,6 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
             textureCache[cacheKey] = image
             return image
         }
-        // Build candidate .tex paths: relative to material dir, then relative to materials/ root
-        let materialDirPath = (materialDir as NSString).deletingLastPathComponent
-        var texPaths = [String]()
-        if !materialDirPath.isEmpty {
-            texPaths.append("\(materialDirPath)/\(name).tex")
-        }
-        // Also try materials/{name}.tex for textures with embedded paths (e.g. "workshop/xxx/foo")
-        let materialsRoot = materialDirPath.split(separator: "/").first.map(String.init) ?? "materials"
-        let rootPath = "\(materialsRoot)/\(name).tex"
-        if !texPaths.contains(rootPath) {
-            texPaths.append(rootPath)
-        }
-        texPaths.append("\(name).tex")
-
-        for texPath in texPaths {
-            // Try .tex from PKG
-            if let parser = pkgParser, let texData = parser.extractFile(named: texPath) {
-                Self.log("  TEX from PKG '\(texPath)' size=\(texData.count)")
-                let texParser = TEXParser(data: Data(texData))  // Copy to reset indices
-                if let animation = texParser.extractAnimation() {
-                    animationCache[cacheKey] = animation
-                    textureCache[cacheKey] = animation.images[0]
-                    return animation.images[0]
-                }
-                if let image = texParser.extractImage() {
-                    textureCache[cacheKey] = image
-                    return image
-                }
-                Self.log("  TEXParser.extractImage() returned nil for '\(texPath)'")
-            }
-
-            // Try .tex from loose file
-            let texURL = wallpaperDir.appending(path: texPath)
-            if let texData = try? Data(contentsOf: texURL) {
-                let texParser = TEXParser(data: texData)
-                if let animation = texParser.extractAnimation() {
-                    animationCache[cacheKey] = animation
-                    textureCache[cacheKey] = animation.images[0]
-                    return animation.images[0]
-                }
-                if let image = texParser.extractImage() {
-                    textureCache[cacheKey] = image
-                    return image
-                }
-            }
-        }
-
-        for path in [name, materialDirPath + "/" + name, "materials/" + name] {
-            if let data = assetData(path, wallpaperDir: wallpaperDir), let image = NSImage(data: data) {
-                textureCache[cacheKey] = image
-                return image
-            }
-        }
-        // Try common image formats directly
-        for ext in ["png", "jpg", "jpeg", "gif"] {
-            let imgPath = materialDirPath.isEmpty ? "\(name).\(ext)" : "\(materialDirPath)/\(name).\(ext)"
-            if let parser = pkgParser, let imgData = parser.extractFile(named: imgPath) {
-                if let image = NSImage(data: imgData) { return image }
-            }
-            let imgURL = wallpaperDir.appending(path: imgPath)
-            if let image = NSImage(contentsOf: imgURL) { return image }
-        }
-
-        Self.log("  No texture found for '\(name)'")
         return nil
     }
 
@@ -923,10 +979,12 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
 
         switch name {
         case "particle/drop":
+            warn("Approximate built-in texture: " + name)
             // Elongated raindrop: bright center, soft edges
             return generateRadialGradient(size: CGSize(width: 4, height: 16), color: .white)
 
         case _ where name.contains("halo"):
+            warn("Approximate built-in texture: " + name)
             // Soft circular glow
             return generateRadialGradient(size: CGSize(width: size, height: size), color: .white)
 
@@ -1011,7 +1069,7 @@ extension SceneWallpaperViewModel {
             func v(_ key:String,_ fallback:String,_ count:Int) -> String {
                 let name=uniformName(key)
                 if names.insert(name).inserted {
-                    let numbers=(values[key]?.string ?? fallback).split(separator:" ").compactMap { Float($0) }
+                    let numbers=(values[key]?.string ?? fallback).replacingOccurrences(of: ",", with: " ").split(separator:" ").compactMap { Float($0) }
                     let defaults=fallback.split(separator:" ").compactMap { Float($0) }
                     let safe=(0..<count).map { i in i < numbers.count && numbers[i].isFinite ? numbers[i] : defaults[i] }
                     uniforms.append(count == 2 ? SKUniform(name:name,vectorFloat2:SIMD2(safe[0],safe[1])) : SKUniform(name:name,vectorFloat3:SIMD3(safe[0],safe[1],safe[2])))
@@ -1035,6 +1093,66 @@ extension SceneWallpaperViewModel {
                     } else { warn("Missing opacity mask: " + name) }
                 }
                 body = "vec4 c = \(previous)(uv); c.a *= \(n("alpha", 1)) * \(mask); return c;"
+            case "colorkey":
+                body = """
+                vec4 c = result;
+                float d = dot(abs(\(v("color", "1 1 1", 3)) - c.rgb), vec3(1.0));
+                float blend = smoothstep(0.001, 0.002 + \(n("fuzziness", 0)), d - \(n("tolerance", 0.1)));
+                \((pass?.combos?["INVERT"] ?? 0) == 1 ? "blend = 1.0 - blend;" : "")
+                c.a *= mix(\(n("alpha", 0)), 1.0, blend);
+                \((pass?.combos?["FLATTEN"] ?? 0) == 1 ? "c.rgb *= c.a;" : "")
+                return c;
+                """
+            case "shake":
+                guard (pass?.combos?["NOISE"] ?? 0) == 0,
+                      (pass?.combos?["AUDIOPROCESSING"] ?? 0) == 0,
+                      (pass?.combos?["TIMEOFFSET"] ?? 0) == 0,
+                      (pass?.combos?["MASK"] ?? 0) == 0 else {
+                    warn("Unsupported shake mode: " + effect.file); continue
+                }
+                var flow = "vec2(0.0)"
+                if let textures = pass?.textures, textures.count > 1, let path = textures[1],
+                   let image = loadTexture(named: path, materialDir: "materials/", wallpaperDir: wallpaperDir) {
+                    let name = "flow\(effectIndex)"
+                    uniforms.append(SKUniform(name: name, texture: SKTexture(image: image)))
+                    flow = "(texture2D(\(name), uv).rg - vec2(0.498)) * 2.0"
+                }
+                if !uniforms.contains(where: { $0.name == "u_scrollTime" }) { uniforms.append(SKUniform(name: "u_scrollTime", float: 0)) }
+                let direction = pass?.combos?["DIRECTION"] ?? 0
+                body = """
+                float t = \(n("speed", 1)) * u_scrollTime;
+                float phase = sin(t) * 0.498 + 0.5;
+                vec2 friction = max(vec2(0.001), \(v("friction", "1 1", 2)));
+                phase = mix(1.0 - pow(1.0-phase, friction.x), pow(phase, friction.y), step(0.0, cos(t)));
+                vec2 bounds = \(v("bounds", "0 1", 2));
+                phase = clamp((phase - bounds.x) / max(0.00001, bounds.y - bounds.x), 0.0, 1.0);
+                phase = \(direction == 0 ? "phase * 2.0 - 1.0" : direction == 2 ? "phase - 1.0" : "phase");
+                vec2 displaced = clamp(uv + phase * pow(\(n("strength", 0.1)), 2.0) * \(flow), 0.0, 1.0);
+                vec4 moved; { vec2 uv = displaced; \(source) moved = result; } result = moved;
+                """
+            case "Simple_Audio_Bars":
+                // Port the authored bottom-bars/replace-alpha variant. Other combinations
+                // remain diagnosed instead of silently rendering a different effect.
+                let defaults = ["SHAPE": 0, "TRANSPARENCY": 1, "BLENDMODE": 0, "A_SMOOTH_CURVE": 0, "ANTIALIAS": 0, "CLIP_LOW": 0, "CLIP_HIGH": 0]
+                guard defaults.allSatisfy({ (pass?.combos?[$0.key] ?? $0.value) == $0.value }) else {
+                    warn("Unsupported audio bars mode: " + effect.file); continue
+                }
+                if !uniforms.contains(where: { $0.name == "u_audioSpectrum" }) {
+                    uniforms.append(SKUniform(name:"u_audioSpectrum", texture:SceneSpectrumTexture.texture(Array(repeating:0,count:64))))
+                }
+                let resolution = [16,32,64].contains(pass?.combos?["RESOLUTION"] ?? 32) ? (pass?.combos?["RESOLUTION"] ?? 32) : 32
+                body = """
+                float count = clamp(\(n("Bar Count", 32)), 1.0, 256.0);
+                float frequency = floor(min(uv.x, 0.999999) * count) / count * \(resolution).0;
+                float bin = mod(floor(frequency), \(resolution).0);
+                float a = texture2D(u_audioSpectrum, vec2((bin + 0.5) / \(resolution).0, 0.5)).r;
+                float b = texture2D(u_audioSpectrum, vec2((mod(bin+1.0, \(resolution).0)+0.5) / \(resolution).0, 0.5)).r;
+                float volume = mix(a, b, smoothstep(0.0, 1.0, fract(frequency)));
+                vec2 bounds = \(v("Lower/Upper Bar Bounds", "0 1", 2));
+                float height = mix(bounds.x, bounds.y, volume);
+                float bar = step(uv.y, height) * step(abs(fract(uv.x*count)*2.0-1.0), 1.0-\(n("Bar Spacing", 0.1)));
+                return vec4(\(v("Bar Color", "1 1 1", 3)), bar * \(n("ui_editor_properties_opacity", 1)));
+                """
             case "scroll":
                 let sx = n("speedx", 0), sy = n("speedy", 0), repeats = v("repeat", "1 1", 2)
                 if !uniforms.contains(where: { $0.name == "u_scrollTime" }) { uniforms.append(SKUniform(name: "u_scrollTime", float: 0)) }
@@ -1112,6 +1230,7 @@ extension SceneWallpaperViewModel {
                 return mix(pix, mix(outside > 0.5 ? inside : outer, frame, edge), \(n("ui_editor_properties_opacity", 1)));
                 """
             default:
+                _ = assetResolver?.data(effect.file, required: true)
                 warn("Unsupported effect: " + effect.file); continue
             }
             if key == "spin" {
@@ -1120,7 +1239,7 @@ extension SceneWallpaperViewModel {
                 body = body.replacingOccurrences(
                     of: "return mix(\(previous)(uv), \(previous)(fract(p + center)), mask);",
                     with: "vec4 original = result; vec4 spun; { vec2 uv = fract(p + center); " + source + " spun = result; } result = mix(original, spun, mask);")
-            } else if key != "scroll" {
+            } else if key != "scroll" && key != "shake" {
                 body = body.replacingOccurrences(of: "\(previous)(uv)", with: "result")
                     .replacingOccurrences(of: "return ", with: "result = ")
             }
@@ -1130,7 +1249,7 @@ extension SceneWallpaperViewModel {
         // The exported spectrum opacity is very faint over bright wallpaper.
         // Boost this generated overlay only; preserve zero opacity and leave the
         // separate cover texture and ordinary opacity effects unchanged.
-        if uniforms.contains(where: { $0.name == "u_audioSpectrum" }) {
+        if effects.contains(where: { URL(fileURLWithPath: $0.file).deletingLastPathComponent().lastPathComponent == "video" }) {
             source += "result.a = clamp(result.a * 3.0, 0.0, 1.0);\n"
         }
         // SpriteKit consumes premultiplied output. Preserve the layer's tint and alpha.

@@ -19,6 +19,26 @@ import Foundation
         precondition(inheritedPipe.succeeded, "Inherited pipe does not require blocking EOF read")
         let error = try run("echo ERROR; exit 0")
         precondition(!error.succeeded, "Exit zero alone cannot validate stale download folders")
+        func app(_ script: String) throws -> SteamDownloadProcess.Result {
+            try SteamDownloadProcess.run(executable: URL(fileURLWithPath: "/bin/sh"), arguments: ["-c", script],
+                workshopID: "", idleTimeout: 0.2, terminationGrace: 0.1, appID: "431960")
+        }
+        let installed = try app("printf \"Success! App '431960' fully installed.\\n\"")
+        precondition(installed.succeeded)
+        let different = try app("printf \"Success! App '4319600' fully installed.\\n\"")
+        precondition(!different.succeeded)
+        let stale = try app("echo 'already have files'; exit 0")
+        precondition(!stale.succeeded, "App download requires its own success marker")
+        let depot = try SteamDownloadProcess.run(executable: URL(fileURLWithPath: "/bin/sh"),
+            arguments: ["-c", "printf '%s\\n' 'Depot download complete : \"/tmp/with spaces\\app_431960\\depot_431961\" (manifest 12345)'"] ,
+            workshopID: "", idleTimeout: 0.2, terminationGrace: 0.1, appID: "431960", depotID: "431961")
+        precondition(depot.succeeded && depot.depotDirectory?.path == "/tmp/with spaces/app_431960/depot_431961")
+        let wrongDepot = try SteamDownloadProcess.run(executable: URL(fileURLWithPath: "/bin/sh"),
+            arguments: ["-c", "printf '%s\\n' 'Depot download complete : \"/tmp/app_431960/depot_431960\" (manifest 12345)'"] ,
+            workshopID: "", idleTimeout: 0.2, terminationGrace: 0.1, appID: "431960", depotID: "431961")
+        precondition(!wrongDepot.succeeded)
+        let upToDate = try app("printf \"Success!App '431960' already up to date.\\n\"")
+        precondition(upToDate.succeeded)
         print("Download split output, idle timeout, forced termination and completion validation: passed")
     }
 }

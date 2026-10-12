@@ -27,7 +27,7 @@ enum SceneScriptBootstrap {
     function revive(v){if(v&&typeof v==='object'&&'x'in v&&'y'in v)return new Vec3(v);return v;}
     function vector(v){if(typeof v==='string')return new Vec3(...v.trim().split(/\s+/).map(Number));return revive(v);}
     let userProperties={};
-    function resolve(v){if(v&&typeof v==='object'&&!Array.isArray(v)&&'value'in v){if(typeof v.user==='string'&&v.user in userProperties)return resolve(userProperties[v.user]);return resolve(v.value);}return v;}
+    function resolve(v){if(v&&typeof v==='object'&&!Array.isArray(v)&&'value'in v){if(typeof v.user==='string'&&v.user in userProperties)return resolve(userProperties[v.user]);if(v.user&&typeof v.user==='object'&&v.user.name in userProperties)return String(resolve(userProperties[v.user.name]))===String(v.user.condition);return resolve(v.value);}return v;}
     const vectorKeys=new Set(['origin','scale','angles','size','color']);
     function typed(k,v){return vectorKeys.has(k)?(typeof v==='number'?new Vec3(v):vector(v)):v;}
     function createScriptProperties(){const values={};const b={finish:()=>values};for(const name of ['addSlider','addCheckbox','addCombo','addText','addColor','addFile','addDirectory'])b[name]=p=>{values[p.name]=p.value===undefined?(p.options||[{}])[0].value:p.value;return b;};return b;}
@@ -63,7 +63,7 @@ enum SceneScriptBootstrap {
       for(const s of scripts)assign(s,invoke(s,'init',s.owner[s.key]));
       for(const s of scripts)invoke(s,'applyUserProperties',userProperties);
     }
-    function applyProperties(changed){Object.assign(userProperties,changed);for(const b of bindings)if(b.raw.user in changed)b.owner[b.key]=typed(b.key,resolve(b.raw));for(const s of scripts){configure(s);invoke(s,'applyUserProperties',changed);}}
+    function applyProperties(changed){Object.assign(userProperties,changed);for(const b of bindings)if((typeof b.raw.user==='string'?b.raw.user:b.raw.user.name) in changed)b.owner[b.key]=typed(b.key,resolve(b.raw));for(const s of scripts){configure(s);invoke(s,'applyUserProperties',changed);}}
     function tick(dt,x,y){engine.frametime=dt;engine.runtime+=dt;input.cursorWorldPosition=new Vec3(x,y,0);for(const s of scripts)assign(s,invoke(s,'update',s.owner[s.key]));}
     function cursorEvent(name,id,x,y){const e={worldPosition:new Vec3(x,y,0),localPosition:new Vec3(x,y,0)};for(const s of scripts)if(s.layer.id===id)invoke(s,name,e);}
     function setSpectrum(left,right){for(const b of audioBuffers)for(let i=0;i<b.average.length;i++){const j=Math.floor(i*left.length/b.average.length);b.left[i]=left[j]||0;b.right[i]=right[j]||0;b.average[i]=(b.left[i]+b.right[i])/2;}}
