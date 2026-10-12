@@ -68,6 +68,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
 // MARK: - delegate methods
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Start cached Steam authentication before the first Workshop visit.
+        // The shared service runs SteamCMD on a background queue.
+        Task { @MainActor in
+            _ = self.contentViewModel.steamCmd
+        }
+
         saveCurrentWallpaper()
         AppDelegate.shared.setPlacehoderWallpaper(with: wallpaperViewModel.currentWallpaper)
 

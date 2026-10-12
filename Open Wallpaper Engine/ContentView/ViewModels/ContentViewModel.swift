@@ -52,14 +52,14 @@ class ContentViewModel: ObservableObject, DropDelegate {
     @Published var selectedWallpapers = Set<URL>()
     @Published var isBatchUnsubscribeConfirming = false
 
-    lazy var steamCmd: SteamCmdService = {
+    @MainActor lazy var steamCmd: SteamCmdService = {
         let svc = SteamCmdService()
         steamCmdCancellable = svc.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
         return svc
     }()
-    lazy var workshopVM: WorkshopViewModel = WorkshopViewModel(steamCmd: steamCmd)
+    @MainActor lazy var workshopVM: WorkshopViewModel = WorkshopViewModel(steamCmd: steamCmd)
     private var steamCmdCancellable: AnyCancellable?
 
     @Published var searchText = ""

@@ -1,12 +1,20 @@
 import Foundation
 import Combine
 
+// Published storage and its first Combine subscription must not race with login workers.
+@MainActor
 class SteamCmdService: ObservableObject {
-    @Published var steamCmdPath: String?
+    @Published var steamCmdPath: String? {
+        didSet { attemptCachedLogin() }
+    }
     @Published var isLoggedIn = false
     @Published var steamUsername: String = ""
     @Published var loginError: String?
     @Published var isLoggingIn = false
+    @Published var isDownloadingEngineAssets = false
+    var hasActiveWorkshopDownloads: Bool {
+        downloadProgress.values.contains { if case .downloading = $0 { return true }; return false }
+    }
     @Published var downloadProgress: [String: DownloadState] = [:]
 
     enum DownloadState: Equatable {
@@ -17,15 +25,21 @@ class SteamCmdService: ObservableObject {
 
     private static let lastUsernameKey = "SteamLastUsername"
 
-    init() {
+    typealias CommandRunner = @Sendable (String, [String], TimeInterval) -> (output: String, exitCode: Int32)
+    private let commandRunner: CommandRunner
+    private let defaults: UserDefaults
+
+    init(startAutomatically: Bool = true, defaults: UserDefaults = .standard, commandRunner: CommandRunner? = nil) {
+        self.commandRunner = commandRunner ?? { Self.runSteamCmd(cmdPath: $0, arguments: $1, timeout: $2) }
+        self.defaults = defaults
+        steamUsername = defaults.string(forKey: Self.lastUsernameKey) ?? ""
+        guard startAutomatically else { return }
         detectSteamCmd()
-        attemptCachedLogin()
     }
 
     /// Run a steamcmd process with proper pipe handling to avoid deadlocks.
     /// Reads stdout/stderr concurrently with process execution and applies a timeout.
-    private func runSteamCmd(arguments: [String], timeout: TimeInterval = 30) -> (output: String, exitCode: Int32) {
-        guard let cmdPath = steamCmdPath else { return ("", -1) }
+    nonisolated private static func runSteamCmd(cmdPath: String, arguments: [String], timeout: TimeInterval = 30) -> (output: String, exitCode: Int32) {
 
         let process = Process()
         let outputPipe = Pipe()
@@ -78,15 +92,15 @@ class SteamCmdService: ObservableObject {
 
     /// Automatically try cached session if we have a saved username and steamcmd is installed.
     private func attemptCachedLogin() {
-        guard isInstalled, !isLoggedIn else { return }
-        if let saved = UserDefaults.standard.string(forKey: Self.lastUsernameKey), !saved.isEmpty {
+        guard isInstalled, !isLoggedIn, !isLoggingIn else { return }
+        if let saved = defaults.string(forKey: Self.lastUsernameKey), !saved.isEmpty {
             loginWithCachedSession(username: saved)
         }
     }
 
     func detectSteamCmd() {
         // Check user-configured path first
-        if let customPath = UserDefaults.standard.string(forKey: "SteamCmdPath"),
+        if let customPath = defaults.string(forKey: "SteamCmdPath"),
            FileManager.default.isExecutableFile(atPath: customPath) {
             steamCmdPath = customPath
             return
@@ -127,7 +141,7 @@ class SteamCmdService: ObservableObject {
             process.arguments = ["steamcmd"]
             process.standardOutput = pipe
             process.standardError = FileHandle.nullDevice
-            try? process.run()
+            do { try process.run() } catch { return }
             process.waitUntilExit()
 
             if process.terminationStatus == 0 {
@@ -158,14 +172,15 @@ class SteamCmdService: ObservableObject {
             )
         }
         pathError = nil
-        UserDefaults.standard.set(path, forKey: "SteamCmdPath")
+        defaults.set(path, forKey: "SteamCmdPath")
         steamCmdPath = path
     }
 
     /// Attempt login with username and password. Steam Guard code is optional.
     func login(username: String, password: String, guardCode: String? = nil) {
-        guard steamCmdPath != nil else { return }
+        guard let cmdPath = steamCmdPath, !isLoggingIn, !isDownloadingEngineAssets else { return }
 
+        let runCommand = commandRunner
         isLoggingIn = true
         loginError = nil
         steamUsername = username
@@ -179,14 +194,14 @@ class SteamCmdService: ObservableObject {
             }
             args += ["+quit"]
 
-            let (output, exitCode) = self.runSteamCmd(arguments: args, timeout: 60)
+            let (output, exitCode) = runCommand(cmdPath, args, 60)
 
             DispatchQueue.main.async {
                 self.isLoggingIn = false
                 if output.contains("Logged in OK") || (output.contains("OK") && exitCode == 0) {
                     self.isLoggedIn = true
                     self.loginError = nil
-                    UserDefaults.standard.set(username, forKey: Self.lastUsernameKey)
+                    self.defaults.set(username, forKey: Self.lastUsernameKey)
                 } else if output.contains("Steam Guard") || output.contains("Two-factor") {
                     self.loginError = "Steam Guard code required"
                 } else if output.contains("Invalid Password") || output.contains("FAILED") {
@@ -200,8 +215,9 @@ class SteamCmdService: ObservableObject {
 
     /// Try login with cached session (no password needed if previously authenticated).
     func loginWithCachedSession(username: String) {
-        guard steamCmdPath != nil else { return }
+        guard let cmdPath = steamCmdPath, !isLoggingIn, !isDownloadingEngineAssets else { return }
 
+        let runCommand = commandRunner
         isLoggingIn = true
         loginError = nil
         steamUsername = username
@@ -209,13 +225,13 @@ class SteamCmdService: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
 
-            let (output, exitCode) = self.runSteamCmd(arguments: ["+login", username, "+quit"], timeout: 30)
+            let (output, exitCode) = runCommand(cmdPath, ["+login", username, "+quit"], 30)
 
             DispatchQueue.main.async {
                 self.isLoggingIn = false
                 if output.contains("Logged in OK") || (output.contains("OK") && exitCode == 0) {
                     self.isLoggedIn = true
-                    UserDefaults.standard.set(username, forKey: Self.lastUsernameKey)
+                    self.defaults.set(username, forKey: Self.lastUsernameKey)
                 } else {
                     self.loginError = "Cached session expired. Please log in with password."
                 }
@@ -225,8 +241,9 @@ class SteamCmdService: ObservableObject {
 
     /// Download a workshop item by its ID.
     func downloadWorkshopItem(workshopId: String) {
-        guard let cmdPath = steamCmdPath, isLoggedIn else { return }
+        guard let cmdPath = steamCmdPath, isLoggedIn, !isDownloadingEngineAssets else { return }
 
+        let username = steamUsername
         downloadProgress[workshopId] = .downloading(status: "Starting steamcmd...")
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -235,9 +252,9 @@ class SteamCmdService: ObservableObject {
             let result: SteamDownloadProcess.Result
             do {
                 result = try SteamDownloadProcess.run(executable: URL(fileURLWithPath: cmdPath),
-                    arguments: ["+login", self.steamUsername, "+workshop_download_item", "431960", workshopId, "validate", "+quit"],
+                    arguments: ["+login", username, "+workshop_download_item", "431960", workshopId, "validate", "+quit"],
                     workshopID: workshopId) { [weak self] output in
-                        guard let status = self?.parseProgress(output) else { return }
+                        guard let status = Self.parseProgress(output) else { return }
                         DispatchQueue.main.async { self?.downloadProgress[workshopId] = .downloading(status: status) }
                     }
             } catch {
@@ -249,7 +266,7 @@ class SteamCmdService: ObservableObject {
             let fullOutput = result.output
 
             // Find downloaded content
-            let steamAppsDir = self.findSteamAppsDir(cmdPath: cmdPath)
+            let steamAppsDir = Self.findSteamAppsDir(cmdPath: cmdPath)
             let sourcePath = steamAppsDir?
                 .appending(path: "workshop/content/431960/\(workshopId)")
 
@@ -295,7 +312,7 @@ class SteamCmdService: ObservableObject {
     }
 
     /// Parse steamcmd output lines into human-readable progress.
-    private func parseProgress(_ output: String) -> String? {
+    nonisolated private static func parseProgress(_ output: String) -> String? {
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
@@ -328,7 +345,7 @@ class SteamCmdService: ObservableObject {
         return nil
     }
 
-    private func findSteamAppsDir(cmdPath: String) -> URL? {
+    nonisolated private static func findSteamAppsDir(cmdPath: String) -> URL? {
         // steamcmd typically stores downloads relative to its install location
         let cmdURL = URL(fileURLWithPath: cmdPath)
 
