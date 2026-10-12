@@ -14,7 +14,8 @@ final class FakeAudio: ExternalAudioCapturing {
     var statusChanged: ((String) -> Void)?
     var changes: [Bool] = []
     func setEnabled(_ value: Bool, retry: Bool) { changes.append(value) }
-    func snapshot() -> [Float] { Array(repeating: 0.5, count: 64) }
+    var bins = Array<Float>(repeating: 0.5, count: 64)
+    func snapshot() -> [Float] { bins }
 }
 
 @main struct ExternalMediaTests {
@@ -46,10 +47,17 @@ final class FakeAudio: ExternalAudioCapturing {
         defer { defaults.removePersistentDomain(forName: suite) }
         let bridge = FakeMedia(), audio = FakeAudio()
         let service = ExternalMediaService(defaults: defaults, bridge: bridge, audio: audio)
+        let ownMusic = Array<Float>(repeating: 0.25, count: 64)
+        check(service.spectrum(wallpaper: ownMusic) == ownMusic, "Wallpaper music works with external audio disabled")
         let first = UUID(), second = UUID()
         service.setConsumer(first, active: true)
         check(bridge.starts == 0 && audio.changes.isEmpty, "Opt-in defaults do not request recording or start helpers")
         service.artworkEnabled = true; service.systemAudioEnabled = true
+        check(service.spectrum(wallpaper: ownMusic).allSatisfy { $0 == 0.75 }, "Wallpaper and external music both contribute")
+        check(service.spectrum(wallpaper: Array(repeating: 0.8, count: 64)).allSatisfy { $0 == 1 }, "Combined spectrum stays within range")
+        audio.bins = Array(repeating: 0, count: 64)
+        check(service.spectrum(wallpaper: ownMusic) == ownMusic, "Silent or unavailable external audio preserves wallpaper music")
+        audio.bins = Array(repeating: 0.5, count: 64)
         service.setConsumer(second, active: true)
         check(bridge.starts == 1 && audio.changes == [true], "Two displays share one helper and one capture")
         service.setConsumer(first, active: false)
@@ -129,6 +137,8 @@ final class FakeAudio: ExternalAudioCapturing {
             CMSampleBufferSetDataReady(buffer!)
             // Stream is unused by the sink; a disconnected object requires no TCC permission.
             let stream = SCStream(filter: SCContentFilter(), configuration: SCStreamConfiguration(), delegate: nil)
+            sink.reset(); sink.stream(stream, didOutputSampleBuffer: buffer!, of: .screen)
+            check(sink.snapshot().allSatisfy { $0 == 0 }, "Screen callbacks are ignored by audio analysis")
             sink.reset(); sink.stream(stream, didOutputSampleBuffer: buffer!, of: .audio)
             check(sink.snapshot().max()! > 0.1, "CoreMedia conversion \(interleaved ? "interleaved" : "planar")")
         }

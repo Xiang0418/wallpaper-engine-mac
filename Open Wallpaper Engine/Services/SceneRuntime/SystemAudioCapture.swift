@@ -1,8 +1,8 @@
 import AVFoundation
 import ScreenCaptureKit
 
-/// One audio-only output for the application. No screen frames are delivered,
-/// stored, or displayed. Each stream owns its sink so late callbacks cannot
+/// One audio analysis stream for the application. Screen frames are received
+/// and immediately ignored, never stored or displayed. Each stream owns its sink so late callbacks cannot
 /// contaminate a replacement stream.
 final class SystemAudioCapture: NSObject, SCStreamDelegate {
     var statusChanged: ((String) -> Void)?
@@ -44,6 +44,9 @@ final class SystemAudioCapture: NSObject, SCStreamDelegate {
                 configuration.sampleRate = 48000; configuration.channelCount = 2
                 let sink = SystemAudioSpectrumSink()
                 let stream = SCStream(filter: filter, configuration: configuration, delegate: self)
+                // SCStream still produces video frames during audio capture.
+                // Receive and ignore them to avoid "stream output NOT found" logs.
+                try stream.addStreamOutput(sink, type: .screen, sampleHandlerQueue: sink.queue)
                 try stream.addStreamOutput(sink, type: .audio, sampleHandlerQueue: sink.queue)
                 self.stream = stream
                 try await stream.startCapture()

@@ -82,6 +82,15 @@ final class ExternalMediaService: ObservableObject {
 
     func spectrum() -> [Float] { audio.snapshot() }
 
+    /// System capture excludes this app, so retain the wallpaper's own audio.
+    func spectrum(wallpaper: [Float]) -> [Float] {
+        guard systemAudioEnabled else { return wallpaper }
+        let external = audio.snapshot()
+        return wallpaper.enumerated().map { index, value in
+            min(1, value + (index < external.count ? external[index] : 0))
+        }
+    }
+
     func shutdown() { consumers.removeAll(); reconcile() }
 
     func retry() {
