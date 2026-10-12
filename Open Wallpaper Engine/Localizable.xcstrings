@@ -1,329 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Use currently playing album artwork" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use currently playing album artwork"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用目前播放歌曲的封面"
-          }
-        }
-      }
-    },
-    "Use other apps for the audio spectrum" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use other apps for the audio spectrum"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "讓頻譜跟隨其他 App 的音訊"
-          }
-        }
-      }
-    },
-    "Other Media Players" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Other Media Players"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "其他音樂播放器"
-          }
-        }
-      }
-    },
-    "Album artwork follows the player shown in Control Center. Audio spectrum includes all other apps and excludes this wallpaper app." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Album artwork follows the player shown in Control Center. Audio spectrum includes all other apps and excludes this wallpaper app."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "封面跟隨控制中心顯示的播放器。頻譜包含其他 App 的混合音訊，不包含桌布 App 本身的聲音。"
-          }
-        }
-      }
-    },
-    "Allow access in System Settings → Privacy & Security → Screen & System Audio Recording. Audio is analyzed locally and is not saved." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Allow access in System Settings → Privacy & Security → Screen & System Audio Recording. Audio is analyzed locally and is not saved."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "請在「系統設定 → 隱私權與安全性 → 螢幕與系統音訊錄製」允許存取。音訊只在本機分析，不會儲存。"
-          }
-        }
-      }
-    },
-    "Retry media connection" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Retry media connection"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新連接播放器"
-          }
-        }
-      }
-    },
-    "Open recording permissions" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open recording permissions"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開啟錄製權限設定"
-          }
-        }
-      }
-    },
-    "External audio is off" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "External audio is off"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "外部音訊已關閉"
-          }
-        }
-      }
-    },
-    "Requesting system audio access…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Requesting system audio access…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在要求系統音訊存取權限⋯"
-          }
-        }
-      }
-    },
-    "Listening to other apps" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Listening to other apps"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在分析其他 App 的音訊"
-          }
-        }
-      }
-    },
-    "System audio unavailable. Check Screen & System Audio Recording permission, then retry." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "System audio unavailable. Check Screen & System Audio Recording permission, then retry."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法取得系統音訊。請確認螢幕與系統音訊錄製權限，再重新連接。"
-          }
-        }
-      }
-    },
-    "System audio stopped. Check recording permission, then retry." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "System audio stopped. Check recording permission, then retry."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "系統音訊擷取已停止。請確認錄製權限，再重新連接。"
-          }
-        }
-      }
-    },
-    "Album artwork is off" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Album artwork is off"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "歌曲封面已關閉"
-          }
-        }
-      }
-    },
-    "Waiting for a player" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Waiting for a player"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在等待播放器提供資訊"
-          }
-        }
-      }
-    },
-    "Player has no album artwork" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Player has no album artwork"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "播放器未提供封面"
-          }
-        }
-      }
-    },
-    "Album artwork connected" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Album artwork connected"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "歌曲封面已連接"
-          }
-        }
-      }
-    },
-    "Player paused — keeping album artwork" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Player paused — keeping album artwork"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "播放器已暫停，保留目前封面"
-          }
-        }
-      }
-    },
-    "Album artwork unavailable. The media bridge may be incompatible with this macOS version. Retry after updating the app." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Album artwork unavailable. The media bridge may be incompatible with this macOS version. Retry after updating the app."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法取得歌曲封面。媒體橋接可能與此 macOS 版本不相容，請更新 App 後重試。"
-          }
-        }
-      }
-    },
-    "Waiting for an active scene wallpaper" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Waiting for an active scene wallpaper"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在等待場景桌布開始播放"
-          }
-        }
-      }
-    },
     "_approved" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -413,9 +90,11 @@
       "comment" : "A separator between a user's name and their role.",
       "isCommentAutoGenerated" : true
     },
-    "!!! Notice that this may affects performance !!!" : {
-
+    ": " : {
+      "comment" : "A button that can be used to exclude a tag.",
+      "isCommentAutoGenerated" : true
     },
+    "!!! Notice that this may affects performance !!!" : {},
     "@%@" : {
       "comment" : "A GitHub username link. The argument is the string “haren724”, the string “MrWindDog”, the string “Unayung”, the string “Erica-Iris”, or the string “klauszhu1105”.",
       "isCommentAutoGenerated" : true
@@ -442,12 +121,8 @@
         }
       }
     },
-    "%@" : {
-
-    },
-    "%lld" : {
-
-    },
+    "%@" : {},
+    "%lld" : {},
     "%lld%%" : {
       "comment" : "A slider that lets the user adjust the volume of a wallpaper. The value is shown as a percentage.",
       "isCommentAutoGenerated" : true
@@ -478,9 +153,7 @@
       "comment" : "A label for the minimum value of a slider.",
       "isCommentAutoGenerated" : true
     },
-    "1 per page (developer)" : {
-
-    },
+    "1 per page (developer)" : {},
     "10 per page" : {
       "localizations" : {
         "zh-Hans" : {
@@ -557,6 +230,17 @@
         }
       }
     },
+    "Abstract" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "抽象"
+          }
+        }
+      }
+    },
     "Add to Favorites" : {
       "localizations" : {
         "zh-Hans" : {
@@ -609,12 +293,91 @@
         }
       }
     },
+    "Advanced Search & Downloads" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "進階搜尋與下載"
+          }
+        }
+      }
+    },
     "Age Rating" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "年龄分级"
+          }
+        }
+      }
+    },
+    "Album artwork connected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album artwork connected"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歌曲封面已連接"
+          }
+        }
+      }
+    },
+    "Album artwork follows the player shown in Control Center. Audio spectrum includes all other apps and excludes this wallpaper app." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album artwork follows the player shown in Control Center. Audio spectrum includes all other apps and excludes this wallpaper app."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封面跟隨控制中心顯示的播放器。頻譜包含其他 App 的混合音訊，不包含桌布 App 本身的聲音。"
+          }
+        }
+      }
+    },
+    "Album artwork is off" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album artwork is off"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歌曲封面已關閉"
+          }
+        }
+      }
+    },
+    "Album artwork unavailable. The media bridge may be incompatible with this macOS version. Retry after updating the app." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album artwork unavailable. The media bridge may be incompatible with this macOS version. Retry after updating the app."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法取得歌曲封面。媒體橋接可能與此 macOS 版本不相容，請更新 App 後重試。"
           }
         }
       }
@@ -698,8 +461,45 @@
         }
       }
     },
-    "Animates" : {
-
+    "Allow access in System Settings → Privacy & Security → Screen & System Audio Recording. Audio is analyzed locally and is not saved." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow access in System Settings → Privacy & Security → Screen & System Audio Recording. Audio is analyzed locally and is not saved."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在「系統設定 → 隱私權與安全性 → 螢幕與系統音訊錄製」允許存取。音訊只在本機分析，不會儲存。"
+          }
+        }
+      }
+    },
+    "Animal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "動物"
+          }
+        }
+      }
+    },
+    "Animates" : {},
+    "Anime" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "動漫"
+          }
+        }
+      }
     },
     "Anti-aliasing" : {
       "localizations" : {
@@ -707,6 +507,17 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "抗锯齿"
+          }
+        }
+      }
+    },
+    "Any" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不限"
           }
         }
       }
@@ -731,6 +542,17 @@
         }
       }
     },
+    "Application" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "應用程式"
+          }
+        }
+      }
+    },
     "Application Rules" : {
       "localizations" : {
         "zh-Hans" : {
@@ -747,6 +569,39 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "应用到所有壁纸"
+          }
+        }
+      }
+    },
+    "Approved" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "官方推薦"
+          }
+        }
+      }
+    },
+    "Asset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "素材"
+          }
+        }
+      }
+    },
+    "Asset Pack" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "素材包"
           }
         }
       }
@@ -804,6 +659,17 @@
         }
       }
     },
+    "Audio responsive" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音訊反應"
+          }
+        }
+      }
+    },
     "Audio source: Display Settings" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -830,6 +696,52 @@
     "Authenticating with Steam..." : {
       "comment" : "A message displayed when the user is logging in to Steam.",
       "isCommentAutoGenerated" : true
+    },
+    "Author’s animated preview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Author’s animated preview"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作者によるアニメーションプレビュー"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作者提供的動態預覽"
+          }
+        }
+      }
+    },
+    "Author’s preview image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Author’s preview image"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作者によるプレビュー画像"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作者提供的預覽圖片"
+          }
+        }
+      }
     },
     "Auto" : {
       "localizations" : {
@@ -933,6 +845,39 @@
         }
       }
     },
+    "Cartoon" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "卡通"
+          }
+        }
+      }
+    },
+    "Category" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分類"
+          }
+        }
+      }
+    },
+    "CGI" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦動畫"
+          }
+        }
+      }
+    },
     "Change Wallpaper" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -996,8 +941,23 @@
       "comment" : "A button that opens a file picker.",
       "isCommentAutoGenerated" : true
     },
+    "Clear All" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除全部"
+          }
+        }
+      }
+    },
     "Click a display to select it, then choose a wallpaper from the library." : {
       "comment" : "A description of how to select a wallpaper.",
+      "isCommentAutoGenerated" : true
+    },
+    "Close" : {
+      "comment" : "A button that closes a preview.",
       "isCommentAutoGenerated" : true
     },
     "Close Window" : {
@@ -1010,9 +970,7 @@
         }
       }
     },
-    "Come out soon..." : {
-
-    },
+    "Come out soon..." : {},
     "Comment" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1104,12 +1062,34 @@
         }
       }
     },
+    "Customizable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可自訂"
+          }
+        }
+      }
+    },
     "Cut" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "剪切"
+          }
+        }
+      }
+    },
+    "Cyberpunk" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "賽博龐克"
           }
         }
       }
@@ -1158,9 +1138,7 @@
         }
       }
     },
-    "Description..." : {
-
-    },
+    "Description..." : {},
     "Developer" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1188,6 +1166,17 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "发现"
+          }
+        }
+      }
+    },
+    "Discover Wallpapers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "探索桌布"
           }
         }
       }
@@ -1230,9 +1219,53 @@
       "comment" : "A button that downloads a file.",
       "isCommentAutoGenerated" : true
     },
+    "Download to Mac" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載到 Mac"
+          }
+        }
+      }
+    },
     "Downloaded" : {
       "comment" : "A label that indicates that a workshop item has been downloaded.",
       "isCommentAutoGenerated" : true
+    },
+    "Dual 3840 x 1080" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙螢幕 3840 x 1080"
+          }
+        }
+      }
+    },
+    "Dual 5120 x 1440" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙螢幕 5120 x 1440"
+          }
+        }
+      }
+    },
+    "Dual 7680 x 2160" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙螢幕 7680 x 2160"
+          }
+        }
+      }
     },
     "Dual Monitor" : {
       "localizations" : {
@@ -1240,6 +1273,28 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "双显示器"
+          }
+        }
+      }
+    },
+    "Dual Standard Definition" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙螢幕標準畫質"
+          }
+        }
+      }
+    },
+    "Dynamic resolution" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "動態解析度"
           }
         }
       }
@@ -1331,9 +1386,70 @@
         }
       }
     },
+    "Everyone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "普遍級"
+          }
+        }
+      }
+    },
+    "Exclude" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排除"
+          }
+        }
+      }
+    },
+    "Excluded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已排除"
+          }
+        }
+      }
+    },
+    "External audio is off" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "External audio is off"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外部音訊已關閉"
+          }
+        }
+      }
+    },
     "Failed" : {
       "comment" : "A label that indicates that a download failed.",
       "isCommentAutoGenerated" : true
+    },
+    "Fantasy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "奇幻"
+          }
+        }
+      }
     },
     "Favorite" : {
       "extractionState" : "stale",
@@ -1342,6 +1458,17 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "喜欢"
+          }
+        }
+      }
+    },
+    "Features" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "功能特性"
           }
         }
       }
@@ -1377,9 +1504,16 @@
         }
       }
     },
-    "Find wallpapers by name, tag, or browse trending content." : {
-      "comment" : "A description of the workshop browser.",
-      "isCommentAutoGenerated" : true
+    "Filters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "篩選條件"
+          }
+        }
+      }
     },
     "Follow System" : {
       "localizations" : {
@@ -1412,6 +1546,17 @@
         }
       }
     },
+    "Game" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遊戲"
+          }
+        }
+      }
+    },
     "General" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1423,9 +1568,31 @@
         }
       }
     },
+    "Genre" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "題材"
+          }
+        }
+      }
+    },
     "Get a free key at" : {
       "comment" : "A label displayed underneath the Steam Web API key input field.",
       "isCommentAutoGenerated" : true
+    },
+    "Girls" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "女性角色"
+          }
+        }
+      }
     },
     "Group" : {
       "extractionState" : "stale",
@@ -1434,6 +1601,17 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "组"
+          }
+        }
+      }
+    },
+    "Guys" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "男性角色"
           }
         }
       }
@@ -1559,6 +1737,17 @@
         }
       }
     },
+    "Included" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已包含"
+          }
+        }
+      }
+    },
     "Installed" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1569,15 +1758,24 @@
         }
       }
     },
-    "Internal" : {
-
-    },
+    "Internal" : {},
     "Keep Running" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "继续运行"
+          }
+        }
+      }
+    },
+    "Landscape" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "風景"
           }
         }
       }
@@ -1629,6 +1827,23 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "白色主题"
+          }
+        }
+      }
+    },
+    "Listening to other apps" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listening to other apps"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在分析其他 App 的音訊"
           }
         }
       }
@@ -1690,6 +1905,17 @@
         }
       }
     },
+    "Mac Download Setup" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 下載設定"
+          }
+        }
+      }
+    },
     "macOS" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1721,6 +1947,39 @@
         }
       }
     },
+    "Mature" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成人內容"
+          }
+        }
+      }
+    },
+    "Media Integration" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "媒體整合"
+          }
+        }
+      }
+    },
+    "Medieval" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中世紀"
+          }
+        }
+      }
+    },
     "Medium" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1737,6 +1996,17 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "中图标"
+          }
+        }
+      }
+    },
+    "Memes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "迷因"
           }
         }
       }
@@ -1796,12 +2066,34 @@
         }
       }
     },
+    "Music" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音樂"
+          }
+        }
+      }
+    },
     "Mute" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "静音"
+          }
+        }
+      }
+    },
+    "My Subscriptions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我的訂閱"
           }
         }
       }
@@ -1813,6 +2105,17 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "名称"
+          }
+        }
+      }
+    },
+    "Nature" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自然"
           }
         }
       }
@@ -1833,6 +2136,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新建标签"
+          }
+        }
+      }
+    },
+    "No matching wallpapers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到符合條件的桌布"
           }
         }
       }
@@ -1877,6 +2191,28 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "正常"
+          }
+        }
+      }
+    },
+    "Not excluded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未排除"
+          }
+        }
+      }
+    },
+    "Not included" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未包含"
           }
         }
       }
@@ -1935,6 +2271,17 @@
         }
       }
     },
+    "Open in Browser" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在瀏覽器開啟"
+          }
+        }
+      }
+    },
     "Open in Finder" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1951,6 +2298,23 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "在创意工坊中打开"
+          }
+        }
+      }
+    },
+    "Open recording permissions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open recording permissions"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟錄製權限設定"
           }
         }
       }
@@ -2029,6 +2393,34 @@
         }
       }
     },
+    "Other Media Players" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other Media Players"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他音樂播放器"
+          }
+        }
+      }
+    },
+    "Other resolution" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他解析度"
+          }
+        }
+      }
+    },
     "Overall Volume" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2080,6 +2472,29 @@
         }
       }
     },
+    "Pause preview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause preview"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレビューを一時停止"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫停預覽"
+          }
+        }
+      }
+    },
     "Pause when VRAM is exhausted" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2101,6 +2516,40 @@
         }
       }
     },
+    "Pixel art" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "像素藝術"
+          }
+        }
+      }
+    },
+    "Play preview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play preview"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレビューを再生"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放預覽"
+          }
+        }
+      }
+    },
     "Playback" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2117,6 +2566,40 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "回放速率"
+          }
+        }
+      }
+    },
+    "Player has no album artwork" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Player has no album artwork"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放器未提供封面"
+          }
+        }
+      }
+    },
+    "Player paused — keeping album artwork" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Player paused — keeping album artwork"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放器已暫停，保留目前封面"
           }
         }
       }
@@ -2173,6 +2656,61 @@
         }
       }
     },
+    "Portrait 720 x 1280" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直式 720 x 1280"
+          }
+        }
+      }
+    },
+    "Portrait 1080 x 1920" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直式 1080 x 1920"
+          }
+        }
+      }
+    },
+    "Portrait 1440 x 2560" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直式 1440 x 2560"
+          }
+        }
+      }
+    },
+    "Portrait 2160 x 3840" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直式 2160 x 3840"
+          }
+        }
+      }
+    },
+    "Portrait Standard Definition" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直式標準畫質"
+          }
+        }
+      }
+    },
     "Post-Processing" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2199,6 +2737,63 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "休眠/加载中…"
+          }
+        }
+      }
+    },
+    "Preset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預設組合"
+          }
+        }
+      }
+    },
+    "Preview could not be loaded." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview could not be loaded."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレビューを読み込めませんでした。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法載入預覽圖片。"
+          }
+        }
+      }
+    },
+    "Preview image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview image"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画像をプレビュー"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預覽圖片"
           }
         }
       }
@@ -2244,12 +2839,34 @@
         }
       }
     },
+    "Puppet Warp" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "骨架變形"
+          }
+        }
+      }
+    },
     "Quality" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "质量"
+          }
+        }
+      }
+    },
+    "Questionable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "限制內容"
           }
         }
       }
@@ -2278,6 +2895,17 @@
     "Re-detect" : {
       "comment" : "A button that triggers a re-detection of the steamcmd binary.",
       "isCommentAutoGenerated" : true
+    },
+    "Ready to download" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已可下載"
+          }
+        }
+      }
     },
     "Recent Wallpapers" : {
       "localizations" : {
@@ -2329,6 +2957,21 @@
         }
       }
     },
+    "Relaxing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放鬆"
+          }
+        }
+      }
+    },
+    "Reload" : {
+      "comment" : "A button that reloads the Steam community page.",
+      "isCommentAutoGenerated" : true
+    },
     "Reload when changing output device" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2370,6 +3013,23 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "举报&拦截"
+          }
+        }
+      }
+    },
+    "Requesting system audio access…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requesting system audio access…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在要求系統音訊存取權限⋯"
           }
         }
       }
@@ -2448,9 +3108,52 @@
         }
       }
     },
+    "Results must include every selected tag. Excluded tags are hidden." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "結果必須符合所有已選標籤，並排除指定標籤。"
+          }
+        }
+      }
+    },
     "Resume" : {
       "comment" : "Title of a menu item that resumes the wallpaper playback.",
       "isCommentAutoGenerated" : true
+    },
+    "Retro" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復古"
+          }
+        }
+      }
+    },
+    "Retry" : {
+      "comment" : "A button that reloads the preview image.",
+      "isCommentAutoGenerated" : true
+    },
+    "Retry media connection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry media connection"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新連接播放器"
+          }
+        }
+      }
     },
     "Safe start after hibernation" : {
       "extractionState" : "stale",
@@ -2511,6 +3214,17 @@
         }
       }
     },
+    "Scene" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "場景"
+          }
+        }
+      }
+    },
     "Scheme Color" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2518,6 +3232,17 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "风格颜色"
+          }
+        }
+      }
+    },
+    "Sci-Fi" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "科幻"
           }
         }
       }
@@ -2531,10 +3256,6 @@
           }
         }
       }
-    },
-    "Search the Steam Workshop" : {
-      "comment" : "A heading for the search bar in the workshop browser.",
-      "isCommentAutoGenerated" : true
     },
     "Search wallpaper settings" : {
       "comment" : "A label for a search bar that filters wallpaper settings.",
@@ -2664,6 +3385,28 @@
         }
       }
     },
+    "Sign in on Steam below to view and manage your subscriptions. Use the same Steam account on Windows; wallpaper playback settings are not synced." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在下方登入 Steam，即可查看與管理訂閱。Windows 請使用相同 Steam 帳號；桌布播放設定不會同步。"
+          }
+        }
+      }
+    },
+    "Sign in to Steam Community, then press Subscribe again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先登入 Steam 社群，再按一次「訂閱」。"
+          }
+        }
+      }
+    },
     "Similar UI Layout to Wallpaper Engine on Steam" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2688,9 +3431,7 @@
       "comment" : "A label for a picker that lets the user sort the list of workshops.",
       "isCommentAutoGenerated" : true
     },
-    "Sort By" : {
-
-    },
+    "Sort By" : {},
     "Source" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2712,12 +3453,89 @@
         }
       }
     },
+    "Sports" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "運動"
+          }
+        }
+      }
+    },
+    "Standard Definition" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標準畫質"
+          }
+        }
+      }
+    },
     "Start with macOS" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "跟随 macOS 启动"
+          }
+        }
+      }
+    },
+    "Steam Community" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 社群"
+          }
+        }
+      }
+    },
+    "Steam community sign-in manages subscriptions. Downloading files to this Mac also requires SteamCMD sign-in. After signing in, close this window and choose Download to Mac again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 社群登入用於管理訂閱。下載檔案到這台 Mac 另需登入 SteamCMD。登入後請關閉此視窗，再按「下載到 Mac」。"
+          }
+        }
+      }
+    },
+    "Steam could not subscribe to this item." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 無法訂閱此項目。"
+          }
+        }
+      }
+    },
+    "Steam denied permission to subscribe to this item." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 不允許訂閱此項目。"
+          }
+        }
+      }
+    },
+    "Steam did not confirm the subscription. Please try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 未確認訂閱成功，請重試。"
           }
         }
       }
@@ -2729,6 +3547,17 @@
     "Steam Login" : {
       "comment" : "A heading for the Steam login screen.",
       "isCommentAutoGenerated" : true
+    },
+    "Steam page stopped responding. Reload to continue." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 頁面已停止回應，請重新載入。"
+          }
+        }
+      }
     },
     "Steam Username" : {
       "comment" : "A label for the Steam username field.",
@@ -2760,6 +3589,39 @@
         }
       }
     },
+    "Subscribe" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱"
+          }
+        }
+      }
+    },
+    "Subscribed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已訂閱"
+          }
+        }
+      }
+    },
+    "Subscribing…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在訂閱…"
+          }
+        }
+      }
+    },
     "Subscription Date" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2787,6 +3649,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "支持&帮助"
+          }
+        }
+      }
+    },
+    "System audio stopped. Check recording permission, then retry." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System audio stopped. Check recording permission, then retry."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系統音訊擷取已停止。請確認錄製權限，再重新連接。"
+          }
+        }
+      }
+    },
+    "System audio unavailable. Check Screen & System Audio Recording permission, then retry." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System audio unavailable. Check Screen & System Audio Recording permission, then retry."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法取得系統音訊。請確認螢幕與系統音訊錄製權限，再重新連接。"
           }
         }
       }
@@ -2824,6 +3720,28 @@
         }
       }
     },
+    "Technology" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "科技"
+          }
+        }
+      }
+    },
+    "Television" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "影視"
+          }
+        }
+      }
+    },
     "Texture Resolution" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2844,15 +3762,20 @@
         }
       }
     },
-    "Third-party" : {
-
+    "Third-party" : {},
+    "This item is not an available Wallpaper Engine wallpaper." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此項目不是可下載的 Wallpaper Engine 桌布。"
+          }
+        }
+      }
     },
-    "This plugin enables animation of GIF thumbnail images in wallpaper explorer" : {
-
-    },
-    "Those all settings above don't have to be saved for taking effect." : {
-
-    },
+    "This plugin enables animation of GIF thumbnail images in wallpaper explorer" : {},
+    "Those all settings above don't have to be saved for taking effect." : {},
     "Titles per page" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2873,12 +3796,78 @@
         }
       }
     },
+    "Triple 4096 x 768" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "三螢幕 4096 x 768"
+          }
+        }
+      }
+    },
+    "Triple 5760 x 1080" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "三螢幕 5760 x 1080"
+          }
+        }
+      }
+    },
+    "Triple 7680 x 1440" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "三螢幕 7680 x 1440"
+          }
+        }
+      }
+    },
+    "Triple 11520 x 2160" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "三螢幕 11520 x 2160"
+          }
+        }
+      }
+    },
     "Triple Monitor" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "三显示器"
+          }
+        }
+      }
+    },
+    "Triple Standard Definition" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "三螢幕標準畫質"
+          }
+        }
+      }
+    },
+    "Try removing a filter or changing your search text." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "試著移除部分篩選條件，或更換搜尋文字。"
           }
         }
       }
@@ -2923,6 +3912,39 @@
         }
       }
     },
+    "Ultrawide 2560 x 1080" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超寬 2560 x 1080"
+          }
+        }
+      }
+    },
+    "Ultrawide 3440 x 1440" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超寬 3440 x 1440"
+          }
+        }
+      }
+    },
+    "Ultrawide Standard Definition" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超寬標準畫質"
+          }
+        }
+      }
+    },
     "Undo" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2949,6 +3971,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消静音"
+          }
+        }
+      }
+    },
+    "Unspecified" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未分類"
           }
         }
       }
@@ -2993,6 +4026,62 @@
       "comment" : "A button that uses a cached Steam session to log in.",
       "isCommentAutoGenerated" : true
     },
+    "Use currently playing album artwork" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use currently playing album artwork"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用目前播放歌曲的封面"
+          }
+        }
+      }
+    },
+    "Use other apps for the audio spectrum" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use other apps for the audio spectrum"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讓頻譜跟隨其他 App 的音訊"
+          }
+        }
+      }
+    },
+    "User Shortcut" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用者捷徑"
+          }
+        }
+      }
+    },
+    "Vehicle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "交通工具"
+          }
+        }
+      }
+    },
     "Verbose" : {
       "localizations" : {
         "zh-Hans" : {
@@ -3033,12 +4122,45 @@
         }
       }
     },
+    "Video Texture" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "影片材質"
+          }
+        }
+      }
+    },
     "View" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "预览"
+          }
+        }
+      }
+    },
+    "View / Subscribe on Steam" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Steam 檢視／訂閱"
+          }
+        }
+      }
+    },
+    "View on Steam" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Steam 檢視"
           }
         }
       }
@@ -3050,6 +4172,51 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "音量"
+          }
+        }
+      }
+    },
+    "Waiting for a player" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for a player"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待播放器提供資訊"
+          }
+        }
+      }
+    },
+    "Waiting for an active scene wallpaper" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for an active scene wallpaper"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待場景桌布開始播放"
+          }
+        }
+      }
+    },
+    "Wallpaper" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "桌布"
           }
         }
       }
@@ -3143,6 +4310,17 @@
         }
       }
     },
+    "Wallpaper Type" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "桌布類型"
+          }
+        }
+      }
+    },
     "Wallpaper Volume" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3192,6 +4370,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "我们关心你的电池寿命"
+          }
+        }
+      }
+    },
+    "Web" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網頁"
           }
         }
       }
@@ -3300,8 +4489,490 @@
         }
       }
     },
-    "􀄪 You can toggle this to have a preview" : {
-
+    "Your Steam subscription limit has been reached." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 Steam 訂閱數量已達上限。"
+          }
+        }
+      }
+    },
+    "􀄪 You can toggle this to have a preview" : {},
+    "Wallpaper Engine shared assets" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wallpaper Engine 共用素材"
+          }
+        }
+      }
+    },
+    "Shared assets not installed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未安裝共用素材"
+          }
+        }
+      }
+    },
+    "Shared assets ready" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共用素材已就緒"
+          }
+        }
+      }
+    },
+    "Import local assets…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入本機素材⋯"
+          }
+        }
+      }
+    },
+    "Download from Steam" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從 Steam 下載"
+          }
+        }
+      }
+    },
+    "Update from Steam" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從 Steam 更新"
+          }
+        }
+      }
+    },
+    "Import the assets folder from your Wallpaper Engine installation, or download it using your Steam account. Active scenes reload after installation. Some effects still require renderer support." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入 Wallpaper Engine 安裝目錄中的 assets 資料夾，或透過你的 Steam 帳號下載。安裝完成後會重新載入播放中的場景；部分效果仍需要渲染器支援。"
+          }
+        }
+      }
+    },
+    "Choose Wallpaper Engine’s assets folder or installation folder." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇 Wallpaper Engine 的 assets 資料夾或安裝目錄。"
+          }
+        }
+      }
+    },
+    "Set up SteamCMD and sign in through the Workshop tab to download assets." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先在創意工坊分頁設定 SteamCMD 並登入，才能下載素材。"
+          }
+        }
+      }
+    },
+    "Wait for Workshop downloads to finish before downloading shared assets." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請等創意工坊下載完成後，再下載共用素材。"
+          }
+        }
+      }
+    },
+    "Steam downloads the Windows installation content and requires ownership of Wallpaper Engine. Allow enough disk space for the installation and a separate asset copy." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 會下載 Windows 版安裝內容，帳號必須擁有 Wallpaper Engine。請預留安裝內容及獨立素材副本所需的磁碟空間。"
+          }
+        }
+      }
+    },
+    "Show shared assets in Finder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Finder 顯示共用素材"
+          }
+        }
+      }
+    },
+    "Scene asset diagnostics" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "場景素材診斷"
+          }
+        }
+      }
+    },
+    "Reports describe currently playing scenes. Missing files and unsupported effects are separate issues." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此處顯示播放中場景的診斷，並分別列出缺少的檔案與尚未支援的效果。"
+          }
+        }
+      }
+    },
+    "No asset issues reported by active scenes." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前播放的場景未回報素材問題。"
+          }
+        }
+      }
+    },
+    "Missing file" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少檔案"
+          }
+        }
+      }
+    },
+    "Invalid or unsupported file" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無效或不支援的檔案"
+          }
+        }
+      }
+    },
+    "Unsupported effect or feature" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未支援的效果或功能"
+          }
+        }
+      }
+    },
+    "Approximate substitute" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用近似替代素材"
+          }
+        }
+      }
+    },
+    "Copying and validating shared assets…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在複製並驗證共用素材⋯"
+          }
+        }
+      }
+    },
+    "Downloading Wallpaper Engine content…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下載 Wallpaper Engine 內容⋯"
+          }
+        }
+      }
+    },
+    "Validating downloaded content…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在驗證下載內容⋯"
+          }
+        }
+      }
+    },
+    "Steam stopped responding. Retry the download; your current assets are unchanged." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 已停止回應。請重試下載；目前的素材保持不變。"
+          }
+        }
+      }
+    },
+    "Steam could not install Wallpaper Engine. Check your Workshop login, Steam Guard and ownership of Wallpaper Engine, then retry." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 無法安裝 Wallpaper Engine。請確認創意工坊登入狀態、Steam Guard 及帳號是否擁有 Wallpaper Engine，再重試。"
+          }
+        }
+      }
+    },
+    "Choose Wallpaper Engine’s assets folder, or its installation folder. Nonempty materials and shaders folders are required." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請選擇 Wallpaper Engine 的 assets 資料夾或安裝目錄，其中必須含有非空的 materials 與 shaders 資料夾。"
+          }
+        }
+      }
+    },
+    "The asset folder contains a symbolic link or unsupported file. Choose an original Wallpaper Engine assets folder." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "素材資料夾含有符號連結或不支援的檔案，請選擇原版 Wallpaper Engine 的 assets 資料夾。"
+          }
+        }
+      }
+    },
+    "Wait for the shared asset download to finish." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請等共用素材下載完成。"
+          }
+        }
+      }
+    },
+    "Imported %lld files on %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已匯入 %lld 個檔案（%@）"
+          }
+        }
+      }
+    },
+    "Connecting to Steam…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在連線至 Steam⋯"
+          }
+        }
+      }
+    },
+    "Preparing disk space…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在準備磁碟空間⋯"
+          }
+        }
+      }
+    },
+    "Installing downloaded content…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在安裝下載內容⋯"
+          }
+        }
+      }
+    },
+    "Shared scene assets" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共用場景素材"
+          }
+        }
+      }
+    },
+    "Wallpaper Engine · Windows installation (App 431960)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wallpaper Engine · Windows 版安裝內容（App 431960）"
+          }
+        }
+      }
+    },
+    "Steam reports progress for the current phase, not individual filenames." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 回報的是目前階段的進度，不提供個別檔案名稱。"
+          }
+        }
+      }
+    },
+    "Wallpaper Engine · Original content (depot 431961)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wallpaper Engine · 原版內容（depot 431961）"
+          }
+        }
+      }
+    },
+    "Steam downloads the original content depot without updating subscribed Workshop wallpapers. Ownership of Wallpaper Engine is required." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 僅下載原版內容 depot，不更新已訂閱的創意工坊桌布。帳號必須擁有 Wallpaper Engine。"
+          }
+        }
+      }
+    },
+    "SteamCMD’s saved login has expired. Sign in again in the Workshop tab; browser login is separate." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SteamCMD 儲存的登入已失效。請在創意工坊分頁重新登入；網頁登入與 SteamCMD 分開。"
+          }
+        }
+      }
+    },
+    "SteamCMD requires a Steam Guard code. Complete sign-in in the Workshop tab." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SteamCMD 需要 Steam Guard 驗證碼。請在創意工坊分頁完成登入。"
+          }
+        }
+      }
+    },
+    "Steam reports that this account does not have a license for Wallpaper Engine." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 回報此帳號沒有 Wallpaper Engine 使用授權。"
+          }
+        }
+      }
+    },
+    "Steam could not write the download. Check available disk space and folder permissions." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 無法寫入下載檔案。請檢查磁碟剩餘空間與資料夾權限。"
+          }
+        }
+      }
+    },
+    "Steam reported missing update files. This is a content update failure, not a login failure. Existing shared assets are preserved." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 回報更新檔案缺失。這是內容更新失敗，並非登入失敗。現有共用素材已保留。"
+          }
+        }
+      }
+    },
+    "Steam did not confirm that the content depot finished downloading. Your existing assets are unchanged. Exit code:" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam 未確認原版內容 depot 已下載完成。現有素材保持不變。結束代碼："
+          }
+        }
+      }
+    },
+    "Content package: %lld files, approximately %lld MB" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "內容套件：%lld 個檔案，約 %lld MB"
+          }
+        }
+      }
     }
   },
   "version" : "1.1"
