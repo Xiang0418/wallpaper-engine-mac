@@ -592,7 +592,11 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         let model: WEModel? = loadJSON(path: imagePath, wallpaperDir: wallpaperDir)
         let materialPath = model?.material ?? (imagePath == "models/util/solidlayer.json" ? "materials/util/solidlayer.json" : "")
         let material: WEMaterial? = loadJSON(path: materialPath, wallpaperDir: wallpaperDir)
-        let textureName = (obj.instance?.textures?.first ?? nil)
+        // These generators replace their input completely (style 3 uses black as
+        // the neutral screen-blend background), so no framebuffer copy is needed.
+        let generatorPaths = ["effects/workshop/3444196917/_________________________________/effect.json", "effects/workshop/3782665413/highly_customizable_audio_visualizer/effect.json"]
+        let generatedAudio = imagePath == "models/util/composelayer.json" && obj.effects?.first.map { generatorPaths.contains($0.file) } == true
+        let textureName = generatedAudio ? "util/white" : (obj.instance?.textures?.first ?? nil)
             ?? (material?.passes?.first?.textures?.first ?? nil)
             ?? (materialPath.hasPrefix("materials/util/solidlayer") ? "util/white" : nil)
         guard let textureName = textureName,
@@ -1130,6 +1134,78 @@ extension SceneWallpaperViewModel {
                 vec2 displaced = clamp(uv + phase * pow(\(n("strength", 0.1)), 2.0) * \(flow), 0.0, 1.0);
                 vec4 moved; { vec2 uv = displaced; \(source) moved = result; } result = moved;
                 """
+            case "_________________________________":
+                guard effect.file.contains("/3444196917/"), [0,1].contains(pass?.combos?["SHAPE"] ?? 0),
+                      (pass?.combos?["BAR_STYLE"] ?? 1) == 1 else {
+                    warn("Unsupported rounded audio bars mode: " + effect.file); continue
+                }
+                if !uniforms.contains(where: { $0.name == "u_audioSpectrum" }) {
+                    uniforms.append(SKUniform(name:"u_audioSpectrum",texture:SceneSpectrumTexture.texture(Array(repeating:0,count:64))))
+                }
+                let aspect = Double(node.size.width / max(1,node.size.height))
+                let top = (pass?.combos?["SHAPE"] ?? 0) == 1
+                body = """
+                float count = clamp(\(n("音频条数量",32)), 1.0, 200.0);
+                float freq = floor(min(uv.x,0.999999)*count)/count*32.0;
+                float bin = floor(freq);
+                float a = texture2D(u_audioSpectrum,vec2((bin+0.5)/32.0,0.5)).r;
+                float b = texture2D(u_audioSpectrum,vec2((mod(bin+1.0,32.0)+0.5)/32.0,0.5)).r;
+                float volume = mix(a,b,smoothstep(0.0,1.0,fract(freq)));
+                volume = log(9.0*volume+1.0)/log(10.0) * \(n("音量因子",1));
+                float width = (1.0-clamp(\(n("音频条间距",0.1)),0.0,1.0))/count;
+                vec2 bounds = \(v("音频条上下限范围","0 0.2",2));
+                float minHeight = \(n("最小高度（将乘以音频条宽度）",0)) * width * \(aspect);
+                float height = max(0.0,mix(max(bounds.x,minHeight),bounds.y,volume));
+                vec2 halfSize = vec2(width*\(aspect),height)*0.5;
+                vec2 p = vec2((fract(uv.x*count)-0.5)/count*\(aspect), \(top ? "1.0-uv.y" : "uv.y")-height*0.5);
+                float radius = clamp(\(n("圆角半径",1)),0.0,1.0)*min(halfSize.x,halfSize.y);
+                float distance = length(max(abs(p)-halfSize+radius,0.0))-radius;
+                vec2 aa = \(v("抗锯齿模糊度","0.05 0",2))*\(15.0 / max(1,min(node.size.width,node.size.height)));
+                float mask = (1.0-smoothstep(-max(0.000001,aa.x),max(0.000001,aa.y),distance))*step(0.000001,height);
+                return vec4(\(v("音频条颜色","1 1 1",3)), mask*\(n("音频条不透明度",1)));
+                """
+            case "highly_customizable_audio_visualizer":
+                guard (pass?.combos?["U_FORM"] ?? 0) == 3 else {
+                    warn("Unsupported custom audio visualizer form: " + effect.file); continue
+                }
+                if !uniforms.contains(where: { $0.name == "u_audioSpectrum" }) {
+                    uniforms.append(SKUniform(name:"u_audioSpectrum",texture:SceneSpectrumTexture.texture(Array(repeating:0,count:64))))
+                }
+                body = """
+                float bandPos = abs(uv.x-0.5)*2.0;
+                float low = min(\(n("频段下限",0)),\(n("频段上限",31)));
+                float high = max(\(n("频段下限",0)),\(n("频段上限",31)));
+                float band = mix(low,high,bandPos), idx = floor(band), t = fract(band);
+                float sensitivity = max(0.01,\(n("灵敏度",0.5)));
+                float p0 = pow(texture2D(u_audioSpectrum,vec2((clamp(idx-1.0,0.0,63.0)+0.5)/64.0,0.5)).r,sensitivity);
+                float p1 = pow(texture2D(u_audioSpectrum,vec2((clamp(idx,0.0,63.0)+0.5)/64.0,0.5)).r,sensitivity);
+                float p2 = pow(texture2D(u_audioSpectrum,vec2((clamp(idx+1.0,0.0,63.0)+0.5)/64.0,0.5)).r,sensitivity);
+                float p3 = pow(texture2D(u_audioSpectrum,vec2((clamp(idx+2.0,0.0,63.0)+0.5)/64.0,0.5)).r,sensitivity);
+                float value = max(0.0,0.5*(2.0*p1+(-p0+p2)*t+(2.0*p0-5.0*p1+4.0*p2-p3)*t*t+(-p0+3.0*p1-3.0*p2+p3)*t*t*t));
+                float wave = sin(bandPos*3.14159265359*\(n("交替频率",3)));
+                if(wave<0.0) wave *= \(n("波谷深度",1.5));
+                float curve = value*pow(max(0.0,1.0-bandPos),max(0.01,\(n("渐隐强度",2))))*wave*\(n("振幅",0.5));
+                float thickness = max(0.0001,\(n("线条粗细",0.006)));
+                float mask = 1.0-smoothstep(thickness,thickness+max(0.0015,thickness*0.5),abs(uv.y-0.5-curve));
+                vec3 color = bandPos<0.5 ? mix(\(v("1 主色","1 1 1",3)),\(v("2 中间色","0 0 1",3)),bandPos*2.0) : mix(\(v("2 中间色","0 0 1",3)),\(v("3 副色","0 1 1",3)),(bandPos-0.5)*2.0);
+                return vec4(color,mask);
+                """
+            case "fisheye":
+                body = """
+                vec2 originalUV = vec2(uv.x,1.0-uv.y);
+                vec2 center = \(v("center","0.5 0.5",2));
+                float size = max(0.0001,\(n("size",1)));
+                vec2 xy = (originalUV-center)*2.0/size;
+                float d = length(xy), alpha = 1.0;
+                vec2 warped = originalUV;
+                if(d < 1.00015230484) {
+                    float radius = asin(clamp(d*0.99984769516,0.0,1.0))/3.14159265359;
+                    warped = center + (d>0.000001 ? xy/d : vec2(0.0))*radius*size;
+                } else { alpha = \((pass?.combos?["BACKGROUND"] ?? 1) == 0 ? "0.0" : "1.0"); }
+                warped = mix(originalUV,warped,\(n("distortion",1)));
+                vec4 distorted; { vec2 uv = vec2(warped.x,1.0-warped.y); \(source) distorted = result; }
+                result = distorted; result.a *= alpha;
+                """
             case "Simple_Audio_Bars":
                 // Port the authored bottom-bars/replace-alpha variant. Other combinations
                 // remain diagnosed instead of silently rendering a different effect.
@@ -1239,7 +1315,7 @@ extension SceneWallpaperViewModel {
                 body = body.replacingOccurrences(
                     of: "return mix(\(previous)(uv), \(previous)(fract(p + center)), mask);",
                     with: "vec4 original = result; vec4 spun; { vec2 uv = fract(p + center); " + source + " spun = result; } result = mix(original, spun, mask);")
-            } else if key != "scroll" && key != "shake" {
+            } else if key != "scroll" && key != "shake" && key != "fisheye" {
                 body = body.replacingOccurrences(of: "\(previous)(uv)", with: "result")
                     .replacingOccurrences(of: "return ", with: "result = ")
             }
