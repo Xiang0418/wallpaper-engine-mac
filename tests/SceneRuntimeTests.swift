@@ -152,7 +152,7 @@ import AVFoundation
         let count = smoothTrail.particleCount
         smoothTrail.update(delta:1.0/120,cursor:CGPoint(x:40,y:20),enabled:true)
         precondition(smoothTrail.particleCount == count && smoothTrail.renderedTip == CGPoint(x:40,y:20))
-        precondition(smoothTrail.segmentCount >= 5, "Live head advances between 25 Hz emission ticks")
+        precondition(smoothTrail.segmentCount >= 1 && smoothTrail.renderedVertices.last == CGPoint(x:40,y:20), "Live head advances between 25 Hz emission ticks")
         smoothTrail.update(delta:0.01,cursor:nil,enabled:false)
         smoothTrail.update(delta:0.01,cursor:CGPoint(x:500,y:500),enabled:true)
         precondition(smoothTrail.segmentCount == 0, "Leaving/reentering does not bridge disconnected paths")

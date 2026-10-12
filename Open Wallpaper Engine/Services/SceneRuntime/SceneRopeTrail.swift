@@ -142,7 +142,19 @@ final class SceneRopeTrail: SKNode {
             let m0 = tangent(points[max(0,i-1)].point, b.point, span:length)
             let m1 = tangent(a.point, points[min(points.count-1,i+2)].point, span:length)
             let budget = max(1, 4096 / max(1, points.count-1))
-            let steps = min(16, budget, max(1, Int(ceil(length / 6))))
+            var steps = min(16, budget, max(1, Int(ceil(length / 6))))
+            if steps > 1 {
+                // Cubic-to-chord error <= max |P"| / (8 * steps²).
+                // Keep error under 0.15 scene pixels where the original cap permits,
+                // and retain subdivisions needed for the age-based width taper.
+                let secondStart = hypot(-6*a.point.x - 4*m0.dx + 6*b.point.x - 2*m1.dx,
+                                        -6*a.point.y - 4*m0.dy + 6*b.point.y - 2*m1.dy)
+                let secondEnd = hypot(6*a.point.x + 2*m0.dx - 6*b.point.x + 4*m1.dx,
+                                      6*a.point.y + 2*m0.dy - 6*b.point.y + 4*m1.dy)
+                let curvatureSteps = max(1, Int(ceil(sqrt(max(secondStart, secondEnd) / 1.2))))
+                let taperSteps = max(1, Int(ceil(abs(halfWidth(a)-halfWidth(b)) / 0.075)))
+                steps = min(steps, max(curvatureSteps, taperSteps))
+            }
             for step in 1...steps {
                 let t = Double(step)/Double(steps), t2 = t*t, t3 = t2*t
                 let h0 = 2*t3-3*t2+1, h1 = t3-2*t2+t, h2 = -2*t3+3*t2, h3 = t3-t2
