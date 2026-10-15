@@ -554,3 +554,25 @@ geometry, preserving authored transparent-part order.
 Format reference: [wqLouis/pkg_parser](https://github.com/wqLouis/pkg_parser/tree/crate/src/pkg_parser/mdl_parser).
 The Swift parser was implemented against that layout and locally verified clip
 IDs/trailers; no proprietary Wallpaper Engine resources are redistributed.
+
+### TEX container compatibility
+
+`bash tests/run-tex-video-containers.sh` checks TEXB0001–0004 through the shared
+header/mipmap reader: plain and LZ4 payloads, V4 plain and JSON metadata layouts,
+MP4 major/compatible brands (including msnv), extended-size boxes, leading free
+boxes, static images, animated atlases, truncated files and allocation bounds.
+Video flags allow additional BMFF brands; actual codec support remains AVFoundation's
+responsibility. Image-only HEIF/AVIF brands are rejected. Unknown TEX versions are
+not guessed. V1/V2 videos and extended V4 metadata are synthetic compatibility
+fixtures, not claims that those variants occur in the installed library.
+
+Pass a wallpaper directory or the library root to also extract every video-flagged
+TEX in its PKG files and decode its first frame with AVFoundation:
+
+```sh
+bash tests/run-tex-video-containers.sh "$HOME/Documents/Open Wallpaper Engine"
+```
+
+Real-media checks require macOS media services outside a restricted sandbox. The
+local audit covered 72 TEX files and decoded all 8 video textures (four V3, four V4).
+The existing scene compatibility suite covers multi-atlas/mipmap TEXS0001–0003.

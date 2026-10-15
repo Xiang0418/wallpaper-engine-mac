@@ -13,80 +13,130 @@ final class TEXParser {
     private let data: Data
     init(data: Data) { self.data = Data(data) }
 
-    /// Read the first uncompressed mip payload of a TEXB0004 video texture.
-    /// Validate the MP4 file-type box rather than scanning compressed pixels for magic bytes.
-    func extractVideoData() -> Data? {
-        let marker = Data("TEXB0004\0".utf8)
-        guard let section = data.range(of: marker) else { return nil }
-        var cursor = section.upperBound
-        func readUInt32() -> UInt32? {
-            guard cursor + 4 <= data.endIndex else { return nil }
-            let value = UInt32(data[cursor]) | (UInt32(data[cursor + 1]) << 8)
-                | (UInt32(data[cursor + 2]) << 16) | (UInt32(data[cursor + 3]) << 24)
-            cursor += 4
-            return value
+    /// All consumers share the same versioned header, mip layout and LZ4 decoder.
+    private struct Reader {
+        let data: Data
+        var offset = 0
+        mutating func u32() -> UInt32? {
+            guard offset <= data.count - 4 else { return nil }
+            defer { offset += 4 }
+            return (0..<4).reduce(0) { $0 | UInt32(data[offset + $1]) << ($1 * 8) }
         }
-        guard let textureCount = readUInt32(), textureCount > 0,
-              readUInt32() != nil, // source image format
-              readUInt32() != nil, // TEXB0004 extra field
-              let mipCount = readUInt32(), mipCount > 0,
-              let width = readUInt32(), width > 0,
-              let height = readUInt32(), height > 0,
-              let compression = readUInt32(), compression == 0,
-              readUInt32() != nil, // uncompressed size (zero for encoded media)
-              let payloadSize = readUInt32(), payloadSize >= 12,
-              Int(payloadSize) <= data.endIndex - cursor else { return nil }
-        let payload = Data(data[cursor..<cursor + Int(payloadSize)])
-        guard payload[4..<8] == Data("ftyp".utf8) else { return nil }
-        let boxSize = payload.prefix(4).reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
-        guard boxSize >= 12, boxSize <= payloadSize else { return nil }
-        let brand = String(data: payload[8..<12], encoding: .ascii)
-        guard ["isom", "iso2", "mp41", "mp42", "avc1", "M4V "].contains(brand) else { return nil }
-        return payload
+        mutating func magic() -> String? {
+            guard offset <= data.count - 9, data[offset + 8] == 0 else { return nil }
+            defer { offset += 9 }
+            return String(data: data[offset..<offset + 8], encoding: .ascii)
+        }
+        mutating func metadata() -> Bool {
+            // V4 editor metadata: 1, 2, NUL-terminated JSON, 1.
+            guard u32() == 1, u32() == 2 else { return false }
+            let end = min(data.count, offset + 64 * 1024)
+            guard let zero = data[offset..<end].firstIndex(of: 0),
+                  let json = try? JSONSerialization.jsonObject(with: data[offset..<zero]),
+                  json is [String: Any] || json is [Any] else { return false }
+            offset = zero + 1
+            return u32() == 1
+        }
     }
-
+    private struct Header {
+        let format: Int, flags: UInt32, width: Int, height: Int
+        let version: Int, count: Int, encoded: UInt32, video: Bool
+    }
     private struct Mip {
         let format: Int, width: Int, height: Int, contentWidth: Int, contentHeight: Int
         let encodedFormat: UInt32
         let bytes: [UInt8]
     }
-
-    private func firstMip() -> Mip? {
-        guard data.starts(with: Data("TEXV0005\0TEXI0001\0".utf8)), data.count >= 46 else { return nil }
-        var cursor = 18
-        func u32() -> UInt32? {
-            guard cursor <= data.count - 4 else { return nil }
-            defer { cursor += 4 }
-            return (0..<4).reduce(0) { $0 | UInt32(data[cursor + $1]) << ($1 * 8) }
+    private func header(_ reader: inout Reader) -> Header? {
+        guard reader.magic() == "TEXV0005", reader.magic() == "TEXI0001",
+              let format = reader.u32(), let flags = reader.u32(),
+              reader.u32() != nil, reader.u32() != nil,
+              let width = reader.u32(), let height = reader.u32(), reader.u32() != nil,
+              let magic = reader.magic(),
+              let version = ["TEXB0001", "TEXB0002", "TEXB0003", "TEXB0004"].firstIndex(of: magic),
+              let count = reader.u32(), count > 0, count <= 256 else { return nil }
+        var encoded: UInt32 = .max, video: UInt32 = 0
+        if version >= 2 { guard let value = reader.u32() else { return nil }; encoded = value }
+        if version == 3 { guard let value = reader.u32(), value <= 1 else { return nil }; video = value }
+        return Header(format: Int(format), flags: flags, width: Int(width), height: Int(height),
+                      version: version + 1, count: Int(count), encoded: encoded,
+                      video: flags & 32 != 0 || video == 1)
+    }
+    private func mip(_ reader: inout Reader, header: Header, decode: Bool = true, atlas: Bool = false) -> Mip? {
+        if header.version == 4 {
+            var probe = reader
+            // Real V4 files also use plain V3 mip layouts. Only the explicit
+            // metadata prefix selects the extended layout; never scan for payloads.
+            if probe.u32() == 1, probe.u32() == 2, let next = probe.u32(), next > 1 {
+                guard reader.metadata() else { return nil }
+            }
         }
-        guard let format = u32(), u32() != nil, u32() != nil, u32() != nil,
-              let cw = u32(), let ch = u32(), u32() != nil else { return nil }
-        guard cursor + 9 <= data.count,
-              let section = String(data: data[cursor..<cursor+8], encoding: .ascii),
-              ["TEXB0001", "TEXB0002", "TEXB0003", "TEXB0004"].contains(section),
-              data[cursor+8] == 0 else { return nil }
-        cursor += 9
-        guard let count = u32(), count > 0 else { return nil }
-        var encoded: UInt32 = .max
-        if section >= "TEXB0003" { guard let value = u32() else { return nil }; encoded = value }
-        if section == "TEXB0004" { guard u32() != nil else { return nil } }
-        guard let mips = u32(), mips > 0, let w = u32(), let h = u32(),
+        guard let w = reader.u32(), let h = reader.u32(),
               w > 0, h > 0, w <= 16384, h <= 16384,
               UInt64(w) * UInt64(h) <= 64 * 1024 * 1024 else { return nil }
-        var compressed: UInt32 = 0, unpacked: UInt32 = 0
-        if section >= "TEXB0002" {
-            guard let c = u32(), let n = u32(), c <= 1, n <= 256 * 1024 * 1024 else { return nil }
-            compressed = c; unpacked = n
+        var compression: UInt32 = 0, unpacked: UInt32 = 0
+        if header.version >= 2 {
+            guard let c = reader.u32(), c <= 1, let n = reader.u32(), n <= 256 * 1024 * 1024 else { return nil }
+            compression = c; unpacked = n
         }
-        guard let length = u32(), Int(length) <= data.count - cursor else { return nil }
-        var bytes = Array(data[cursor..<cursor+Int(length)])
-        if compressed == 1 {
-            guard let decoded = Self.decodeLZ4(bytes, size: Int(unpacked)) else { return nil }
-            bytes = decoded
+        guard let length = reader.u32(), length <= 256 * 1024 * 1024,
+              Int(length) <= data.count - reader.offset else { return nil }
+        let start = reader.offset
+        reader.offset += Int(length)
+        var bytes = decode ? Array(data[start..<reader.offset]) : []
+        if decode && compression == 1 {
+            guard let result = Self.decodeLZ4(bytes, size: Int(unpacked)) else { return nil }
+            bytes = result
         }
-        return Mip(format: Int(format), width: Int(w), height: Int(h),
-                   contentWidth: min(Int(cw), Int(w)), contentHeight: min(Int(ch), Int(h)),
-                   encodedFormat: encoded, bytes: bytes)
+        return Mip(format: header.format, width: Int(w), height: Int(h),
+                   contentWidth: atlas ? Int(w) : min(header.width, Int(w)),
+                   contentHeight: atlas ? Int(h) : min(header.height, Int(h)),
+                   encodedFormat: header.encoded, bytes: bytes)
+    }
+    private func firstMip() -> (Header, Mip)? {
+        var reader = Reader(data: data)
+        guard let h = header(&reader), let count = reader.u32(), count > 0, count <= 32,
+              let m = mip(&reader, header: h) else { return nil }
+        return (h, m)
+    }
+
+    /// Validate an ISO BMFF file-type box at a box boundary, including compatible
+    /// brands. Codec support is decided later by AVFoundation, not the TEX reader.
+    private static func isMP4(_ bytes: [UInt8], declaredVideo: Bool) -> Bool {
+        let brands: Set<String> = ["isom", "iso2", "iso3", "iso4", "iso5", "iso6", "iso7", "iso8", "iso9",
+                                   "mp41", "mp42", "avc1", "M4V ", "M4VH", "M4VP", "msnv", "dash"]
+        var offset = 0
+        for _ in 0..<32 {
+            guard offset <= bytes.count - 8 else { return false }
+            func be(_ start: Int, _ count: Int) -> UInt64 {
+                bytes[start..<start + count].reduce(0) { ($0 << 8) | UInt64($1) }
+            }
+            var size = be(offset, 4), headerSize = 8
+            let type = String(bytes: bytes[offset + 4..<offset + 8], encoding: .ascii)
+            if size == 1 {
+                guard offset <= bytes.count - 16 else { return false }
+                size = be(offset + 8, 8); headerSize = 16
+            }
+            guard size >= UInt64(headerSize), size <= UInt64(bytes.count - offset) else { return false }
+            if type == "ftyp" {
+                let payload = offset + headerSize, end = offset + Int(size)
+                guard end - payload >= 8, (end - payload - 8) % 4 == 0 else { return false }
+                let major = String(bytes: bytes[payload..<payload + 4], encoding: .ascii) ?? ""
+                // Image-only BMFF files are not video textures.
+                if ["avif", "avis", "heic", "heix", "mif1", "msf1"].contains(major) { return false }
+                if declaredVideo || brands.contains(major) { return true }
+                return stride(from: payload + 8, to: end, by: 4).contains {
+                    brands.contains(String(bytes: bytes[$0..<$0 + 4], encoding: .ascii) ?? "")
+                }
+            }
+            guard type == "free" || type == "skip" || type == "wide" else { return false }
+            offset += Int(size)
+        }
+        return false
+    }
+    func extractVideoData() -> Data? {
+        guard let (header, mip) = firstMip(), Self.isMP4(mip.bytes, declaredVideo: header.video) else { return nil }
+        return Data(mip.bytes)
     }
 
     /// Raw LZ4 blocks (not Apple's framed COMPRESSION_LZ4 stream).
@@ -122,7 +172,8 @@ final class TEXParser {
     }
 
     func extractImage() -> NSImage? {
-        guard extractVideoData() == nil, let mip = firstMip() else { return nil }
+        guard let (header, mip) = firstMip(), !header.video,
+              !Self.isMP4(mip.bytes, declaredVideo: false) else { return nil }
         return image(from: mip)
     }
 
@@ -163,57 +214,30 @@ final class TEXParser {
     /// TEXS metadata follows every image/mipmap, not necessarily the first image.
     /// Keep full atlas pixels for animation; static textures retain their existing crop.
     func extractAnimation() -> TEXAnimation? {
-        guard data.starts(with: Data("TEXV0005\0TEXI0001\0".utf8)), data.count >= 46 else { return nil }
-        var offset = 18
-        func u32() -> UInt32? {
-            guard offset <= data.count - 4 else { return nil }
-            defer { offset += 4 }
-            return (0..<4).reduce(0) { $0 | UInt32(data[offset+$1]) << ($1*8) }
-        }
-        func magic() -> String? {
-            guard offset <= data.count - 9, data[offset+8] == 0 else { return nil }
-            defer { offset += 9 }
-            return String(data: data[offset..<offset+8], encoding: .ascii)
-        }
-        guard let format = u32(), let flags = u32(), flags & 4 != 0, flags & 32 == 0,
-              u32() != nil, u32() != nil, u32() != nil, u32() != nil, u32() != nil,
-              let container = magic(), ["TEXB0001", "TEXB0002", "TEXB0003", "TEXB0004"].contains(container),
-              let count = u32(), count > 0, count <= 256 else { return nil }
-        var encoded: UInt32 = .max
-        if container >= "TEXB0003" { guard let value = u32() else { return nil }; encoded = value }
-        if container == "TEXB0004" { guard u32() != nil else { return nil } }
+        var reader = Reader(data: data)
+        guard let h = header(&reader), h.flags & 4 != 0, !h.video else { return nil }
+        let flags = h.flags
         var images: [NSImage] = [], sizes: [CGSize] = []
-        var pixelBudget: UInt64 = 64 * 1024 * 1024
-        for _ in 0..<count {
-            guard let mips = u32(), mips > 0, mips <= 32 else { return nil }
-            for mip in 0..<mips {
-                guard let w = u32(), let h = u32(), w > 0, h > 0, w <= 16384, h <= 16384 else { return nil }
-                var compressed: UInt32 = 0, unpacked: UInt32 = 0
-                if container >= "TEXB0002" {
-                    guard let c = u32(), c <= 1, let size = u32(), size <= 256 * 1024 * 1024 else { return nil }
-                    compressed = c; unpacked = size
-                }
-                guard let length = u32(), Int(length) <= data.count - offset else { return nil }
-                let start = offset; offset += Int(length)
-                guard mip == 0 else { continue }
-                let pixels = UInt64(w) * UInt64(h)
-                guard pixels <= pixelBudget else { return nil }
-                pixelBudget -= pixels
-                var bytes = Array(data[start..<offset])
-                if compressed == 1 {
-                    guard let decoded = Self.decodeLZ4(bytes, size: Int(unpacked)) else { return nil }
-                    bytes = decoded
-                }
-                let source = Mip(format: Int(format), width: Int(w), height: Int(h), contentWidth: Int(w), contentHeight: Int(h), encodedFormat: encoded, bytes: bytes)
+        var pixelBudget = 64 * 1024 * 1024
+        var byteBudget = 256 * 1024 * 1024
+        for _ in 0..<h.count {
+            guard let count = reader.u32(), count > 0, count <= 32 else { return nil }
+            for index in 0..<count {
+                guard let source = mip(&reader, header: h, decode: index == 0, atlas: true) else { return nil }
+                guard index == 0 else { continue }
+                let pixels = source.width * source.height
+                guard pixels <= pixelBudget, source.bytes.count <= byteBudget else { return nil }
+                pixelBudget -= pixels; byteBudget -= source.bytes.count
                 guard let image = image(from: source) else { return nil }
-                // NSImage can synthesize a display-scaled representation on Retina.
-                // Validate encoded dimensions from bytes, not that representation.
-                if encoded != .max {
-                    guard let bitmap = NSBitmapImageRep(data: Data(bytes)), bitmap.pixelsWide == Int(w), bitmap.pixelsHigh == Int(h) else { return nil }
+                if h.encoded != .max {
+                    guard let bitmap = NSBitmapImageRep(data: Data(source.bytes)),
+                          bitmap.pixelsWide == source.width, bitmap.pixelsHigh == source.height else { return nil }
                 }
-                images.append(image); sizes.append(CGSize(width: Int(w), height: Int(h)))
+                images.append(image); sizes.append(CGSize(width: source.width, height: source.height))
             }
         }
+        func u32() -> UInt32? { reader.u32() }
+        func magic() -> String? { reader.magic() }
         guard let version = magic(), ["TEXS0001", "TEXS0002", "TEXS0003"].contains(version),
               let frameCount = u32(), frameCount > 0, frameCount <= 4096 else { return nil }
         if version == "TEXS0003" { guard u32() != nil, u32() != nil else { return nil } }
