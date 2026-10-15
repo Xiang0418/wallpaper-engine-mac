@@ -228,6 +228,10 @@ final class SceneScriptRuntime {
                 node.children.compactMap { $0 as? SceneSpriteParticles }.forEach { $0.applyOverrides(overrides) }
             }
             let content = contentNodes[id] ?? node
+            if let puppet = content as? ScenePuppetNode,
+               let values = state.forProperty("animationlayers")?.toArray() as? [[String: Any]] {
+                puppet.applyAnimationLayers(values)
+            }
             content.alpha = min(1, max(0, number(state.forProperty("alpha"), 1)))
             node.isHidden = !(state.forProperty("visible")?.toBool() ?? true)
             if let label = content as? SKLabelNode, let text = state.forProperty("text")?.toString() {

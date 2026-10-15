@@ -511,3 +511,46 @@ The scene/GPU/UI tests require macOS graphics services. These fixtures do not re
 `bash tests/run-scene-sprite-effects.sh "/path/to/3817518265"` uses the locally installed wallpaper (assets are not checked in). Requires a macOS graphical session/GPU. Verifies embedded MP4 sprite frames, pause/resume/cleanup, firefly prewarm and cherry textures, bounded particle counts and expiry after cursor departure, live size overrides, and pixel coverage for silent versus active audio bars. Writes a visual check to `/tmp/we-sprite-effects.png` and rejects shader compilation failures. Also asserts virtual framebuffer resources are not reported as missing files.
 
 The sprite-effects harness also checks all three audio selections plus Off, live style 1/3 parameters, and GPU signal response for both rounded-bar layers and the gradient curve/fisheye pipeline. Rendered samples are written to `/tmp/we-audio-style-1.png`, `/tmp/we-audio-style-11.png` (top bars), and `/tmp/we-audio-style-3.png`.
+
+## Puppet models and audio-driven skeletal animation
+
+```sh
+bash tests/run-puppet.sh '/path/to/3282304687'
+```
+
+Uses the user's installed Bocchi/Psyduck wallpaper; no artwork/model assets are
+checked in. Requires a macOS GUI/GPU session. Builds production sources and tests
+all three MDLV0023 models (Bocchi 24 bones / 3 clips, Psyduck 23 / 2, cursor 5 / 1),
+bounded parsing and truncated/invalid input, parent ordering/cycle rejection,
+identity bind skinning, loop boundaries, zero blend/rate, real animated deformation,
+nested audio-rate scripts, layer play/pause API, global pause/resume and stop cleanup.
+The package stays unmodified and audio stays muted. The author's help overlay is
+hidden only in the ephemeral QA scene. Two production-scene PNGs are written to
+`/tmp/bocchi-puppet-frame1.png` and `/tmp/bocchi-puppet-frame2.png` for offscreen geometry QA.
+These SKView snapshots have a different SK3DNode Y orientation from live Metal
+composition; they are not evidence of desktop orientation. Verify the running
+wallpaper on screen after rendering changes.
+
+The renderer uses explicit MDL draw-batch order, Y-down model coordinates, four
+bone weights, parent-local bind matrices, interpolated translation/scale and
+quaternion rotation. Base layers blend before additive bind-relative deltas.
+Animation IDs come from MDLA, rather than assuming array order or translated
+names. SceneScript evaluates nested animation `rate`, `blend`, and `visible`
+bindings; `getAnimationLayer` exposes play (restart), pause and stop. The scene's
+clock and spectrum provider drive animation; no separate audio or animation timer
+is created. Rate changes integrate elapsed time without jumping clip phase.
+
+Supported binary scope is MDLV0023 / MDLS0004 / MDLA0006 dense 2D bone tracks
+with empty morph trailers, as validated against this fixture. Other versions and
+morph data are rejected with an unsupported-Puppet diagnostic instead of showing
+a disconnected texture atlas. Attachment sockets, mesh morphs, animation
+cross-fades (`blendin`/`blendout`), general 3D models and effects on puppet content
+are not implemented. The fixture's puppet layers have no such effects. Existing
+unrelated clock/media scripts and custom shader warnings are outside this fix.
+Windows pixel parity and long-duration multi-display performance remain manual
+checks. SceneKit rasterizes the indexed mesh; CPU skinning updates only changed
+geometry, preserving authored transparent-part order.
+
+Format reference: [wqLouis/pkg_parser](https://github.com/wqLouis/pkg_parser/tree/crate/src/pkg_parser/mdl_parser).
+The Swift parser was implemented against that layout and locally verified clip
+IDs/trailers; no proprietary Wallpaper Engine resources are redistributed.

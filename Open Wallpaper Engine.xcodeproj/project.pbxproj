@@ -80,6 +80,8 @@
 		EE60000000000000000000001 /* SceneParsers/SceneAssetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE60000000000000000000002; };
 		EE60000000000000000000011 /* EngineAssetsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE60000000000000000000012; };
 		EE60000000000000000000021 /* EngineAssetsSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE60000000000000000000022; };
+		CD5200000000000000000001 /* SceneParsers/MDLParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5100000000000000000001; };
+		CD5200000000000000000002 /* SceneRuntime/ScenePuppetNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5100000000000000000002; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -169,6 +171,8 @@
 		EE60000000000000000000002 /* SceneParsers/SceneAssetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SceneParsers/SceneAssetResolver.swift"; sourceTree = "<group>"; };
 		EE60000000000000000000012 /* EngineAssetsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EngineAssetsService.swift"; sourceTree = "<group>"; };
 		EE60000000000000000000022 /* EngineAssetsSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EngineAssetsSettingsSection.swift"; sourceTree = "<group>"; };
+		CD5100000000000000000001 /* SceneParsers/MDLParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneParsers/MDLParser.swift; sourceTree = "<group>"; };
+		CD5100000000000000000002 /* SceneRuntime/ScenePuppetNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/ScenePuppetNode.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -260,6 +264,8 @@
 				CC3100000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift */,
 				CC3100000000000000000003 /* SceneRuntime/SceneRopeTrail.swift */,
 				CD4100000000000000000001 /* SceneRuntime/SceneVideoTexture.swift */,
+				CD5100000000000000000001 /* SceneParsers/MDLParser.swift */,
+				CD5100000000000000000002 /* SceneRuntime/ScenePuppetNode.swift */,
 				CD4100000000000000000002 /* SceneRuntime/SceneSpriteParticles.swift */,
 				CC3100000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift */,
 				CC3100000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift */,
@@ -546,6 +552,8 @@
 				CC3200000000000000000002 /* SceneRuntime/SceneAudioSpectrum.swift in Sources */,
 				CC3200000000000000000003 /* SceneRuntime/SceneRopeTrail.swift in Sources */,
 				CD4200000000000000000001 /* SceneRuntime/SceneVideoTexture.swift in Sources */,
+				CD5200000000000000000001 /* SceneParsers/MDLParser.swift in Sources */,
+				CD5200000000000000000002 /* SceneRuntime/ScenePuppetNode.swift in Sources */,
 				CD4200000000000000000002 /* SceneRuntime/SceneSpriteParticles.swift in Sources */,
 				CC3200000000000000000004 /* SceneRuntime/InteractiveWallpaperScene.swift in Sources */,
 				CC3200000000000000000005 /* SceneRuntime/SceneSpectrumTexture.swift in Sources */,

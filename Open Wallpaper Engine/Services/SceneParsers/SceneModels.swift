@@ -189,6 +189,7 @@ struct WEScriptValue: Codable {
 // MARK: - Model / Material
 
 struct WEModel: Codable {
+    var puppet: String?
     var autosize: Bool?
     var material: String?    // path to material JSON
 }

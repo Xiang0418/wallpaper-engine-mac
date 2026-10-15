@@ -60,6 +60,12 @@ enum SceneScriptBootstrap {
         }else { owner[k]=typed(k,v); }
       }}
       raw.forEach((o,i)=>walk(o,layers[i],layers[i],''));
+      for(const l of layers){
+        for(const a of l.animationlayers||[]){a.restart=0;a.paused=false;
+          a.play=()=>{a.restart++;a.visible=true;a.paused=false;};
+          a.pause=()=>{a.paused=true;};a.stop=()=>{a.visible=false;a.restart++;};}
+        l.getAnimationLayer=key=>(l.animationlayers||[]).find(a=>a.name===key||a.id===key)||null;
+      }
       for(const s of scripts)assign(s,invoke(s,'init',s.owner[s.key]));
       for(const s of scripts)invoke(s,'applyUserProperties',userProperties);
     }

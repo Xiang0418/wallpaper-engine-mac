@@ -8,6 +8,7 @@ final class InteractiveWallpaperScene: SKScene {
     var spectrumProvider: (() -> [Float])?
     private var lastTime: TimeInterval?
     private var cursorHistory = SceneCursorHistory()
+    private var puppets: [ScenePuppetNode] = []
     private var spriteParticles: [SceneSpriteParticles] = []
     func bindParticles(_ system: SceneSpriteParticles) { spriteParticles.append(system) }
     private var trails: [(SKNode, SceneRopeTrail)] = []
@@ -64,6 +65,7 @@ final class InteractiveWallpaperScene: SKScene {
                 trail.zPosition = CGFloat(index+1)
                 addChild(trail); trails.append((node, trail))
             }
+            if let puppet = contentNodes[id] as? ScenePuppetNode { puppets.append(puppet) }
             if let sprite = contentNodes[id] as? SKSpriteNode {
                 if let video = sprite.userData?["videoTexture"] as? SceneVideoTexture { videoSprites.append((sprite, video)) }
                 if sprite.userData?["mediaThumbnail"] as? Bool == true { mediaBindings.append(SceneMediaArtworkBinding(sprite: sprite)) }
@@ -117,7 +119,10 @@ final class InteractiveWallpaperScene: SKScene {
             let p = view.convert(windowPoint, from: nil)
             if view.bounds.contains(p) { point = convertPoint(fromView: p) }
         }
+        let bins = spectrumProvider?() ?? Array(repeating:0,count:64)
+        scriptRuntime?.setSpectrum(left: bins, right: bins)
         scriptRuntime?.update(delta: dt, cursor: point ?? CGPoint(x: -1e6, y: -1e6))
+        for puppet in puppets { puppet.advance(dt) }
         if media.artworkRevision != artworkRevision {
             mediaBindings.forEach { $0.apply(media.artworkTexture) }
             artworkRevision = media.artworkRevision
@@ -140,8 +145,6 @@ final class InteractiveWallpaperScene: SKScene {
             }
             trail.update(delta: 0, cursor: point, enabled: !hidden)
         }
-        let bins = spectrumProvider?() ?? Array(repeating:0,count:64)
-        scriptRuntime?.setSpectrum(left: bins, right: bins)
         if !spectrumSprites.isEmpty, bins != previousSpectrum {
             let texture = SceneSpectrumTexture.texture(bins)
             for sprite in spectrumSprites { sprite.shader?.uniformNamed("u_audioSpectrum")?.textureValue = texture }
@@ -190,6 +193,7 @@ final class InteractiveWallpaperScene: SKScene {
         cursorHistory.reset()
         scriptRuntime?.stop(); scriptRuntime = nil
         spectrumProvider = nil
+        puppets.removeAll()
         textureAnimations.removeAll(); scrollSprites.removeAll()
         videoSprites.forEach { $0.1.stop() }; videoSprites.removeAll()
         spriteParticles.removeAll(); trails.removeAll(); spectrumSprites.removeAll(); audioOverlays.removeAll(); removeAllActions()

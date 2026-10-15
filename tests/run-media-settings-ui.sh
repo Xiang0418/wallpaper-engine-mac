@@ -10,6 +10,7 @@ source = Path('Open Wallpaper Engine/SettingsView/GeneralPage.swift').read_text(
 Path(sys.argv[1]).write_text('import SwiftUI\n' + source[source.index('struct ExternalMediaSettingsSection: View'):])
 PY
 xcrun swiftc -module-cache-path "$build_dir/cache" \
+ 'Open Wallpaper Engine/Services/SceneParsers/MDLParser.swift' \
  'Open Wallpaper Engine/Services/SceneRuntime/'*.swift \
  "$build_dir/Section.swift" tests/MediaSettingsUITests.swift -o "$build_dir/tests"
 "$build_dir/tests"

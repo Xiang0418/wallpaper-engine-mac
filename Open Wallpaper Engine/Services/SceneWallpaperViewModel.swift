@@ -619,6 +619,22 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
             }
             if let first = frames.first { texture = first }
         }
+        if let path = model?.puppet {
+            do {
+                guard let data = assetResolver?.data(path, required: true) else { throw MDLParser.Failure.invalid("missing model") }
+                let puppet = try MDLParser.parse(data)
+                let dimensions = (obj.size ?? "\(image.size.width) \(image.size.height)").parseVector2()
+                guard dimensions.0.isFinite, dimensions.1.isFinite,
+                      dimensions.0 > 0, dimensions.1 > 0, dimensions.0 <= 8192, dimensions.1 <= 8192 else {
+                    throw MDLParser.Failure.invalid("viewport size")
+                }
+                let layers = rawObjects.first { $0["id"] as? Int == obj.id }?["animationlayers"] as? [[String: Any]] ?? []
+                return ScenePuppetNode(model: puppet, image: image, size: CGSize(width: dimensions.0, height: dimensions.1), layers: layers)
+            } catch {
+                warn("Unsupported puppet \(path): \(error)")
+                return nil
+            }
+        }
         let node = SKSpriteNode(texture: texture)
         if let video = videoTextures[materialPath + "|" + textureName] {
             node.userData = NSMutableDictionary(); node.userData?["videoTexture"] = video

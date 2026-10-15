@@ -10,6 +10,7 @@ swiftc -module-cache-path "$build_dir/cache" \
   'Open Wallpaper Engine/Services/SceneParsers/PKGParser.swift' \
   'Open Wallpaper Engine/Services/SceneParsers/TEXParser.swift' \
   'Open Wallpaper Engine/Services/SceneParsers/SceneModels.swift' \
+  'Open Wallpaper Engine/Services/SceneParsers/MDLParser.swift' \
   'Open Wallpaper Engine/Services/SceneRuntime/'*.swift \
   'Open Wallpaper Engine/Services/SceneWallpaperViewModel.swift' \
   tests/SceneRenderingTests.swift -o "$build_dir/smoke"

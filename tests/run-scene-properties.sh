@@ -12,6 +12,7 @@ source = Path('Open Wallpaper Engine/ContentView/Components/WallpaperPreview.swi
 Path(sys.argv[1]).write_text('import SwiftUI\n' + source[source.index('struct ScenePropertiesEditor: View'):])
 PY
 swiftc -module-cache-path "$build_dir/cache" \
+  'Open Wallpaper Engine/Services/SceneParsers/MDLParser.swift' \
   'Open Wallpaper Engine/Services/SceneRuntime/'*.swift \
   'Open Wallpaper Engine/Services/WEProject.swift' \
   "$build_dir/Editor.swift" tests/ScenePropertiesUITests.swift -o "$build_dir/tests"
