@@ -6,6 +6,54 @@ import Foundation
             try SteamDownloadProcess.run(executable: URL(fileURLWithPath: "/bin/sh"), arguments: ["-c", script],
                 workshopID: "123", idleTimeout: idle, terminationGrace: 0.1)
         }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let launch = formatter.date(from: "2026-10-16 01:35:06")!
+        let workshop = """
+        [2026-10-16 01:35:08] [AppID 431960] Download item 123 requested by app
+        [2026-10-16 01:35:09] [AppID 431960] Detected workshop change : changed cached item 123, new manifest 456
+        [2026-10-16 01:35:18] [AppID 431960] Download item 123 result : OK
+        """
+        let content = """
+        [2026-10-16 01:35:10] Downloading 102 chunks for depot 431960 (456)
+        [2026-10-16 01:35:17] AppID 431960 starting commit from test to test
+        """
+        let native = SteamDownloadProcess.NativeTimings.parse(workshop: workshop, content: content, id: "123", launched: launch)
+        precondition(native.phases["native.startup_and_login"] == 2)
+        precondition(native.phases["native.request_to_transfer"] == 2)
+        precondition(native.phases["native.transfer_and_staging"] == 7)
+        precondition(native.phases["native.commit_and_validation"] == 1)
+        precondition(native.phases["native.job"] == 10 && native.outcome == "ok")
+        let other = SteamDownloadProcess.NativeTimings.parse(workshop: workshop, content: content, id: "12", launched: launch)
+        precondition(other.phases.isEmpty, "Never attribute another item's events")
+        let ambiguous = content.replacingOccurrences(of: "[2026-10-16 01:35:17]", with:
+            "[2026-10-16 01:35:15] Downloading 50 chunks for depot 431960 (789)\n[2026-10-16 01:35:17]")
+        let concurrent = SteamDownloadProcess.NativeTimings.parse(workshop: workshop, content: ambiguous, id: "123", launched: launch)
+        precondition(concurrent.phases["native.transfer_and_staging"] == nil)
+        let failed = SteamDownloadProcess.NativeTimings.parse(workshop: workshop.replacingOccurrences(of: "result : OK", with: "result : Failure"), content: "", id: "123", launched: launch)
+        precondition(failed.outcome == "failed" && failed.phases["native.job"] == 10)
+        // Real subprocesses would collide on this directory if serialization failed.
+        let lockPath = FileManager.default.temporaryDirectory.appendingPathComponent("steam-queue-" + UUID().uuidString).path
+        let group = DispatchGroup()
+        final class Results: @unchecked Sendable {
+            let lock = NSLock()
+            var successes = 0
+            func record(_ success: Bool) { lock.lock(); defer { lock.unlock() }; if success { successes += 1 } }
+        }
+        let results = Results()
+        for _ in 0..<3 {
+            group.enter()
+            DispatchQueue.global().async {
+                defer { group.leave() }
+                let script = "mkdir \"$1\" || exit 9; sleep 0.1; rmdir \"$1\"; printf 'Success. Downloaded item 123 (10 bytes)\\n'"
+                let outcome = try? SteamDownloadProcess.run(executable: URL(fileURLWithPath: "/bin/sh"),
+                    arguments: ["-c", script, "test", lockPath], workshopID: "123", idleTimeout: 2)
+                results.record(outcome?.succeeded == true)
+            }
+        }
+        precondition(group.wait(timeout: .now() + 10) == .success && results.successes == 3,
+                     "All downloads must run without overlapping their shared staging directory")
         let split = try run("printf 'Success. Down'; sleep 0.05; printf 'loaded item 123 (10 bytes)\\n'; while :; do :; done")
         precondition(split.succeeded, "Split success output terminates hung teardown")
         let slow = try run("for i in 1 2 3 4 5; do echo progress; sleep 0.07; done; printf 'Success. Downloaded item 123 (10 bytes)\\n'")

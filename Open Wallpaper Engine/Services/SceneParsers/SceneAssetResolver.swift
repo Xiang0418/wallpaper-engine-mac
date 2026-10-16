@@ -24,6 +24,11 @@ final class SceneAssetDiagnostics: ObservableObject {
 
 /// One resolver per scene load. Candidate searches are silent until all alternatives fail.
 final class SceneAssetResolver {
+    static func contentRoot(_ directory: URL) -> URL {
+        let runtime = directory.appendingPathComponent(".preset-runtime")
+        return FileManager.default.fileExists(atPath: runtime.appendingPathComponent("project.json").path) ? runtime : directory
+    }
+
     struct Asset { let path: String; let data: Data }
     let wallpaperRoot: URL
     let sharedRoot: URL?
@@ -65,6 +70,17 @@ final class SceneAssetResolver {
 
     func asset(candidates: [String], required: Bool = false) -> Asset? {
         let paths = Array(NSOrderedSet(array: candidates.compactMap(Self.normalize))) as? [String] ?? []
+        if paths == ["project.json"], let data = try? Data(contentsOf: wallpaperRoot.appendingPathComponent("project.json")) {
+            return Asset(path: "project.json", data: data)
+        }
+        // Preset loose files override files of the same name in the base package.
+        if wallpaperRoot.lastPathComponent == ".preset-runtime" {
+            for path in paths {
+                if let url = file(path, under: wallpaperRoot), let data = try? Data(contentsOf: url) {
+                    return Asset(path: path, data: data)
+                }
+            }
+        }
         // Source precedence applies across ALL candidates, including file extensions.
         for path in paths {
             if let key = packagePaths[path.lowercased()], let data = package?.extractFile(named: key) {

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import AVFoundation
 
 /// Provide Wallpaper Database for WallpaperView and ContentView etc.
 class WallpaperViewModel: ObservableObject {
@@ -29,6 +30,20 @@ class WallpaperViewModel: ObservableObject {
     /// Per-screen wallpaper assignments, keyed by persistent display UUID.
     @Published var wallpapers: [String: WEWallpaper] = [:] {
         didSet { saveWallpapers() }
+    }
+
+    @Published private(set) var loadingWallpapers: [String: String] = [:]
+    @Published private(set) var wallpaperLoadErrors: [String: String] = [:]
+    private var scenePreparations: [String: Task<Void, Never>] = [:]
+    private var requestedDirectories: [String: URL] = [:]
+    private var loadTickets: [String: UUID] = [:]
+    private var preparedVideoPlayers: [String: AVPlayer] = [:]
+    private var preparedScenes: [String: SceneWallpaperViewModel] = [:]
+    func takePreparedVideoPlayer(for screenId: String) -> AVPlayer? {
+        preparedVideoPlayers.removeValue(forKey: screenId)
+    }
+    func takePreparedScene(for screenId: String) -> SceneWallpaperViewModel? {
+        preparedScenes.removeValue(forKey: screenId)
     }
 
     /// Screens where wallpaper display is enabled.
@@ -90,9 +105,89 @@ class WallpaperViewModel: ObservableObject {
     }
 
     /// Set wallpaper for a specific screen.
-    func setWallpaper(_ wallpaper: WEWallpaper, for screenId: String) {
-        wallpapers[screenId] = wallpaper
-        addToRecents(wallpaper)
+    func setWallpaper(_ wallpaper: WEWallpaper, for screenId: String, resolvePreset: Bool = true) {
+        scenePreparations[screenId]?.cancel()
+        requestedDirectories[screenId] = wallpaper.wallpaperDirectory
+        let ticket = UUID()
+        loadTickets[screenId] = ticket
+        loadingWallpapers.removeValue(forKey: screenId)
+        wallpaperLoadErrors.removeValue(forKey: screenId)
+        if resolvePreset && wallpaper.project.dependency != nil {
+            loadingWallpapers[screenId] = wallpaper.project.title
+            scenePreparations[screenId] = Task { @MainActor [weak self] in
+                do {
+                    let resolved = try await WEPresetResolver.prepare(wallpaper)
+                    guard let self, !Task.isCancelled, self.loadTickets[screenId] == ticket else { return }
+                    self.scenePreparations.removeValue(forKey: screenId)
+                    self.setWallpaper(resolved, for: screenId, resolvePreset: false)
+                } catch {
+                    guard let self, self.loadTickets[screenId] == ticket else { return }
+                    self.loadingWallpapers.removeValue(forKey: screenId)
+                    self.scenePreparations.removeValue(forKey: screenId)
+                    self.wallpaperLoadErrors[screenId] = "Preset 載入失敗：" + error.localizedDescription
+                }
+            }
+            return
+        }
+        let type = wallpaper.project.type.lowercased()
+        guard type == "scene" || type == "video" else {
+            wallpapers[screenId] = wallpaper; addToRecents(wallpaper); return
+        }
+        // Keep the committed assignment (and its live renderer) unchanged until ready.
+        loadingWallpapers[screenId] = wallpaper.project.title ?? wallpaper.wallpaperDirectory.lastPathComponent
+        let assets = EngineAssetLibrary.standard.activeRoot
+        scenePreparations[screenId] = Task { @MainActor [weak self] in
+            do {
+                let prepared: SceneWallpaperViewModel?
+                var videoPlayer: AVPlayer?
+                if type == "scene" {
+                    let token = DesktopLoadCancellation()
+                    prepared = try await withTaskCancellationHandler {
+                        try await SceneWallpaperViewModel.prepare(wallpaper: wallpaper, screenId: screenId,
+                            assets: assets, cancelled: { token.isCancelled })
+                    } onCancel: { token.cancel() }
+                } else {
+                    let asset = AVURLAsset(url: SceneAssetResolver.contentRoot(wallpaper.wallpaperDirectory).appendingPathComponent(wallpaper.project.file))
+                    guard try await asset.load(.isPlayable) else {
+                        throw NSError(domain: "WallpaperLoad", code: 1, userInfo: [NSLocalizedDescriptionKey: "影片無法播放"])
+                    }
+                    guard !(try await asset.loadTracks(withMediaType: .video)).isEmpty else {
+                        throw NSError(domain: "WallpaperLoad", code: 2, userInfo: [NSLocalizedDescriptionKey: "找不到影片畫面"])
+                    }
+                    let item = AVPlayerItem(asset: asset)
+                    let player = AVPlayer(playerItem: item)
+                    player.isMuted = true
+                    let deadline = ProcessInfo.processInfo.systemUptime + 30
+                    while item.status != .readyToPlay {
+                        try Task.checkCancellation()
+                        guard item.status != .failed, ProcessInfo.processInfo.systemUptime < deadline else {
+                            throw item.error ?? NSError(domain: "WallpaperLoad", code: 3,
+                                userInfo: [NSLocalizedDescriptionKey: "影片載入失敗或逾時"])
+                        }
+                        try await Task.sleep(nanoseconds: 20_000_000)
+                    }
+                    videoPlayer = player
+                    prepared = nil
+                }
+                guard let self, !Task.isCancelled, self.loadTickets[screenId] == ticket else {
+                    prepared?.stop(); return
+                }
+                self.preparedScenes[screenId]?.stop()
+                self.preparedScenes[screenId] = prepared
+                self.preparedVideoPlayers[screenId] = videoPlayer
+                self.wallpapers[screenId] = wallpaper
+                self.addToRecents(wallpaper)
+                self.loadingWallpapers.removeValue(forKey: screenId)
+                self.scenePreparations.removeValue(forKey: screenId)
+            } catch {
+                guard let self, self.loadTickets[screenId] == ticket else { return }
+                self.loadingWallpapers.removeValue(forKey: screenId)
+                self.scenePreparations.removeValue(forKey: screenId)
+                if !(error is CancellationError) {
+                    self.wallpaperLoadErrors[screenId] = "載入失敗，保留原桌布：" + error.localizedDescription
+                }
+            }
+        }
     }
 
     func isScreenEnabled(_ screenId: String) -> Bool {
@@ -101,6 +196,11 @@ class WallpaperViewModel: ObservableObject {
 
     func toggleScreen(_ screenId: String) {
         if enabledScreens.contains(screenId) {
+            scenePreparations.removeValue(forKey: screenId)?.cancel()
+            loadTickets.removeValue(forKey: screenId)
+            loadingWallpapers.removeValue(forKey: screenId)
+            preparedScenes.removeValue(forKey: screenId)?.stop()
+            preparedVideoPlayers.removeValue(forKey: screenId)?.pause()
             enabledScreens.remove(screenId)
         } else {
             enabledScreens.insert(screenId)
@@ -110,6 +210,12 @@ class WallpaperViewModel: ObservableObject {
 
     /// Remove a wallpaper from all screens (e.g., when unsubscribing).
     func removeWallpaperFromAllScreens(directory: URL) {
+        for (id, requested) in requestedDirectories where requested == directory {
+            scenePreparations.removeValue(forKey: id)?.cancel()
+            loadTickets.removeValue(forKey: id); loadingWallpapers.removeValue(forKey: id)
+            preparedScenes.removeValue(forKey: id)?.stop()
+            preparedVideoPlayers.removeValue(forKey: id)?.pause()
+        }
         for (key, wp) in wallpapers {
             if wp.wallpaperDirectory == directory {
                 wallpapers[key] = Self.defaultWallpaper
@@ -282,4 +388,12 @@ class WallpaperViewModel: ObservableObject {
             UserDefaults.standard.set(data, forKey: "CurrentWallpaper")
         }
     }
+}
+
+
+private final class DesktopLoadCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+    var isCancelled: Bool { lock.lock(); defer { lock.unlock() }; return cancelled }
+    func cancel() { lock.lock(); cancelled = true; lock.unlock() }
 }

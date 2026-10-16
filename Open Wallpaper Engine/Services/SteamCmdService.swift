@@ -185,7 +185,7 @@ class SteamCmdService: ObservableObject {
         loginError = nil
         steamUsername = username
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        SteamDownloadQueue.worker.async { [weak self] in
             guard let self = self else { return }
 
             var args = ["+login", username, password]
@@ -222,7 +222,7 @@ class SteamCmdService: ObservableObject {
         loginError = nil
         steamUsername = username
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        SteamDownloadQueue.worker.async { [weak self] in
             guard let self = self else { return }
 
             let (output, exitCode) = runCommand(cmdPath, ["+login", username, "+quit"], 30)
@@ -239,15 +239,51 @@ class SteamCmdService: ObservableObject {
         }
     }
 
+    static var resolveDownloadedItem: ((URL) async throws -> Void)?
+
+    /// Fetch an original wallpaper with the existing authenticated Steam session.
+    static func downloadPresetDependency(_ id: String, to destination: URL) async throws {
+        guard !id.isEmpty, id.allSatisfy({ $0.isASCII && $0.isNumber }) else {
+            throw NSError(domain: "WallpaperPreset", code: 4, userInfo: [NSLocalizedDescriptionKey: "Invalid wallpaper dependency ID"])
+        }
+        let defaults = UserDefaults.standard
+        let username = defaults.string(forKey: Self.lastUsernameKey) ?? ""
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let candidates = [defaults.string(forKey: "SteamCmdPath"), "/opt/homebrew/bin/steamcmd", "/usr/local/bin/steamcmd",
+            home + "/Library/Application Support/Steam/steamcmd.sh", home + "/steamcmd/steamcmd.sh"].compactMap { $0 }
+        guard let executable = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }), !username.isEmpty else {
+            throw NSError(domain: "WallpaperPreset", code: 1, userInfo: [NSLocalizedDescriptionKey: "請先在 Workshop 登入 Steam，才能下載原始桌布 " + id])
+        }
+        try await SteamDownloadQueue.perform(id: id) {
+            let result = try SteamDownloadProcess.run(executable: URL(fileURLWithPath: executable),
+                arguments: ["+login", username, "+workshop_download_item", "431960", id, "validate", "+quit"],
+                workshopID: id) { _ in }
+            guard result.succeeded, let steamApps = Self.findSteamAppsDir(cmdPath: executable) else {
+                throw NSError(domain: "WallpaperPreset", code: 2, userInfo: [NSLocalizedDescriptionKey: "原始桌布下載失敗（" + id + "），請確認 Steam 登入與 Workshop 存取權限。"])
+            }
+            let source = steamApps.appendingPathComponent("workshop/content/431960/" + id)
+            let fm = FileManager.default
+            guard fm.fileExists(atPath: source.appendingPathComponent("project.json").path) else {
+                throw NSError(domain: "WallpaperPreset", code: 3, userInfo: [NSLocalizedDescriptionKey: "原始桌布缺少 project.json：" + id])
+            }
+            try Self.importWorkshopItem(from: source, to: destination)
+        }
+        try Task.checkCancellation()
+    }
+
     /// Download a workshop item by its ID.
     func downloadWorkshopItem(workshopId: String) {
         guard let cmdPath = steamCmdPath, isLoggedIn, !isDownloadingEngineAssets else { return }
+        if case .downloading = downloadProgress[workshopId] { return }
 
         let username = steamUsername
-        downloadProgress[workshopId] = .downloading(status: "Starting steamcmd...")
+        downloadProgress[workshopId] = .downloading(status: String(localized: "Waiting for download queue…"))
+        let queued = ProcessInfo.processInfo.systemUptime
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        SteamDownloadQueue.worker.async { [weak self] in
             guard let self = self else { return }
+            SteamDownloadProcess.recordDuration("queue", id: workshopId, since: queued)
+            DispatchQueue.main.async { self.downloadProgress[workshopId] = .downloading(status: "Starting steamcmd...") }
 
             let result: SteamDownloadProcess.Result
             do {
@@ -270,45 +306,59 @@ class SteamCmdService: ObservableObject {
             let sourcePath = steamAppsDir?
                 .appending(path: "workshop/content/431960/\(workshopId)")
 
-            DispatchQueue.main.async {
-                guard result.succeeded else {
-                    let detail = fullOutput.components(separatedBy: "\n").last { $0.contains("ERROR") || $0.contains("FAILED") }
+            guard result.succeeded else {
+                let detail = fullOutput.components(separatedBy: "\n").last { $0.contains("ERROR") || $0.contains("FAILED") }
+                DispatchQueue.main.async {
                     self.downloadProgress[workshopId] = .failed(result.timedOut
                         ? "Steam download stopped after 180 seconds without output."
                         : detail ?? "Steam download failed (exit \(result.exitCode.map(String.init) ?? "unknown")).")
-                    return
                 }
+                return
+            }
+            DispatchQueue.main.async {
                 self.downloadProgress[workshopId] = .downloading(status: "Copying to library...")
-
-                if let sourceDir = sourcePath {
-                    let fm = FileManager.default
-                    if fm.fileExists(atPath: sourceDir.path) {
-                        let dest = fm.wallpapersDirectory.appending(path: workshopId)
-                        if !fm.fileExists(atPath: dest.path) {
-                            do {
-                                try fm.copyItem(at: sourceDir, to: dest)
-                            } catch {
-                                self.downloadProgress[workshopId] = .failed("Copy failed: \(error.localizedDescription)")
-                                return
-                            }
-                        }
-                        self.downloadProgress[workshopId] = .completed
-                        return
-                    }
-                }
-
-                if fullOutput.contains("ERROR") || fullOutput.contains("FAILED") {
-                    let errorLine = fullOutput.components(separatedBy: "\n")
-                        .first(where: { $0.contains("ERROR") || $0.contains("FAILED") })
-                        ?? "Unknown error"
-                    self.downloadProgress[workshopId] = .failed(errorLine)
-                } else if let exitCode = result.exitCode, exitCode != 0 {
-                    self.downloadProgress[workshopId] = .failed("Exit code \(exitCode)")
-                } else {
-                    self.downloadProgress[workshopId] = .failed("Files not found at expected path")
+            }
+            // This worker owns disk I/O; only published state goes to the main queue.
+            let fm = FileManager.default
+            guard let sourceDir = sourcePath, fm.fileExists(atPath: sourceDir.path) else {
+                DispatchQueue.main.async { self.downloadProgress[workshopId] = .failed("Files not found at expected path") }
+                return
+            }
+            let dest = fm.wallpapersDirectory.appending(path: workshopId)
+            let importStarted = ProcessInfo.processInfo.systemUptime
+            do {
+                try Self.importWorkshopItem(from: sourceDir, to: dest)
+                SteamDownloadProcess.recordDuration("import", id: workshopId, since: importStarted)
+            } catch {
+                SteamDownloadProcess.recordDuration("import.failed", id: workshopId, since: importStarted)
+                DispatchQueue.main.async { self.downloadProgress[workshopId] = .failed("Copy failed: \(error.localizedDescription)") }
+                return
+            }
+            Task { @MainActor in
+                let dependencyStarted = ProcessInfo.processInfo.systemUptime
+                do {
+                    self.downloadProgress[workshopId] = .downloading(status: "Resolving wallpaper dependencies...")
+                    try await Self.resolveDownloadedItem?(dest)
+                    SteamDownloadProcess.recordDuration("dependencies", id: workshopId, since: dependencyStarted)
+                    self.downloadProgress[workshopId] = .completed
+                    NotificationCenter.default.post(name: Notification.Name("WorkshopDownloadCompleted"), object: dest)
+                } catch {
+                    SteamDownloadProcess.recordDuration("dependencies.failed", id: workshopId, since: dependencyStarted)
+                    self.downloadProgress[workshopId] = .failed(error.localizedDescription)
                 }
             }
         }
+    }
+
+    /// Call on a worker queue. Staging prevents a failed copy from becoming a
+    /// seemingly complete library item; an existing library item is preserved.
+    nonisolated static func importWorkshopItem(from source: URL, to destination: URL) throws {
+        let fm = FileManager.default
+        guard !fm.fileExists(atPath: destination.path) else { return }
+        let staging = destination.deletingLastPathComponent().appendingPathComponent(".import-" + UUID().uuidString)
+        defer { try? fm.removeItem(at: staging) }
+        try fm.copyItem(at: source, to: staging)
+        try fm.moveItem(at: staging, to: destination)
     }
 
     /// Parse steamcmd output lines into human-readable progress.

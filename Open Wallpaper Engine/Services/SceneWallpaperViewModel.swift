@@ -15,6 +15,58 @@ import CoreText
 class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     private let screenId: String
     private var audioEnabled = true
+    private var exportProperties: [String: Any]?
+    private var preparingForDisplay = false
+    private var preparationCancelled: () -> Bool = { false }
+    var requestReload: (() -> Void)?
+    private(set) var loadFailure: String?
+    private static let preparationQueue = DispatchQueue(label: "com.openwallpaper.desktop-prepare", qos: .userInitiated)
+
+    /// Own the unpublished renderer exclusively on this queue, then hand it to main.
+    static func prepare(wallpaper: WEWallpaper, screenId: String, assets: URL?,
+                        cancelled: @escaping () -> Bool) async throws -> SceneWallpaperViewModel {
+        try await withCheckedThrowingContinuation { continuation in
+            preparationQueue.async {
+                if cancelled() { continuation.resume(throwing: CancellationError()); return }
+                let model = autoreleasepool {
+                    SceneWallpaperViewModel(wallpaper: wallpaper, screenId: screenId,
+                        sharedAssets: { assets }, preparingForDisplay: true, cancelled: cancelled)
+                }
+                if cancelled() {
+                    model.stop(); continuation.resume(throwing: CancellationError())
+                } else if let failure = model.loadFailure {
+                    model.stop()
+                    continuation.resume(throwing: NSError(domain: "ScenePreparation", code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: failure]))
+                } else {
+                    continuation.resume(returning: model)
+                }
+            }
+        }
+    }
+
+    /// Called only after preparation completes, immediately before presenting the scene.
+    func activatePreparedScene() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard preparingForDisplay else { return }
+        preparingForDisplay = false; exportProperties = nil; preparationCancelled = { false }
+        (skScene as? InteractiveWallpaperScene)?.activateLiveMedia()
+        installLiveObservers()
+        WallpaperPlaybackSessions.shared.register(self, screenId: screenId)
+        volumeSubscription = AppDelegate.shared.wallpaperViewModel.volumePublisher(for: currentWallpaper)
+            .sink { [weak self] volume in self?.playVolume = volume; self?.applyPlayback() }
+        let directory = currentWallpaper.wallpaperDirectory.standardizedFileURL.path
+        propertySubscription = NotificationCenter.default.publisher(for: ScenePropertyStore.didChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notification in
+                guard notification.object as? String == directory,
+                      let changes = notification.userInfo as? [String: Any] else { return }
+                (self?.skScene as? InteractiveWallpaperScene)?.scriptRuntime?.applyUserProperties(changes)
+            }
+        (skScene as? InteractiveWallpaperScene)?.scriptRuntime?.applyUserProperties(
+            ScenePropertyStore.shared.values(at: currentWallpaper.wallpaperDirectory))
+        applyPlayback()
+    }
 
     func setAudioEnabled(_ enabled: Bool) {
         audioEnabled = enabled
@@ -46,6 +98,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     private let sharedAssets: () -> URL?
     private var rawObjects: [[String: Any]] = []
     private var spectrumSources: [SceneAudioSpectrumSource?] = []
+    private var preparedBackgroundVideo: SceneVideoTexture?
     private var videoPlayer: AVQueuePlayer?
     private var videoLooper: AVPlayerLooper?
     private var videoOutput: AVPlayerItemVideoOutput?
@@ -79,7 +132,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         (skScene as? InteractiveWallpaperScene)?.stop()
         spectrumSources.forEach { $0?.stop() }; spectrumSources.removeAll()
         rawObjects.removeAll()
-        WallpaperPlaybackSessions.shared.unregister(self, screenId: screenId)
+        if exportProperties == nil { WallpaperPlaybackSessions.shared.unregister(self, screenId: screenId) }
         volumeSubscription = nil
         propertySubscription = nil
         readinessTimer?.invalidate()
@@ -93,6 +146,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         videoPlayer?.removeAllItems()
         videoLooper = nil
         videoPlayer = nil
+        preparedBackgroundVideo = nil
         videoOutput = nil
         audioPlayers.forEach { $0.0.stop() }
         audioPlayers.removeAll()
@@ -104,7 +158,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         renderingWarnings.removeAll()
         pkgParser = nil
         assetResolver = nil
-        SceneAssetDiagnostics.shared.remove(diagnosticID)
+        if exportProperties == nil { SceneAssetDiagnostics.shared.remove(diagnosticID) }
         if let directory = temporaryDirectory {
             do { try FileManager.default.removeItem(at: directory) }
             catch { Self.log("Temporary media cleanup failed: \(error)") }
@@ -118,6 +172,10 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         videoPlayer?.rate = rate
         videoTextures.values.forEach { $0.player.rate = rate }
         videoPlayer?.volume = audioEnabled && !policyMuted ? playVolume : 0
+        if let background = preparedBackgroundVideo {
+            background.player.isMuted = !audioEnabled || policyMuted
+            background.player.volume = audioEnabled && !policyMuted ? playVolume : 0
+        }
         for (player, volume) in audioPlayers {
             player.volume = audioEnabled && !policyMuted ? volume * playVolume : 0
             if rate == 0 { player.pause() }
@@ -139,6 +197,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     }
 
     private func reportFailure(_ message: String) {
+        loadFailure = message
         Self.log(message)
         errorNode?.text = message
         errorNode?.isHidden = false
@@ -147,11 +206,24 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     }
 
 
-    init(wallpaper: WEWallpaper, screenId: String = UUID().uuidString, sharedAssets: @escaping () -> URL? = { EngineAssetLibrary.standard.activeRoot }) {
+    init(wallpaper: WEWallpaper, screenId: String = UUID().uuidString, sharedAssets: @escaping () -> URL? = { EngineAssetLibrary.standard.activeRoot }, exportProperties: [String: Any]? = nil, preparingForDisplay: Bool = false, cancelled: @escaping () -> Bool = { false }) {
+        self.preparingForDisplay = preparingForDisplay
+        self.preparationCancelled = cancelled
+        self.exportProperties = preparingForDisplay ? [:] : exportProperties
         self.sharedAssets = sharedAssets
         self.screenId = screenId
         self.currentWallpaper = wallpaper
         Self.log("init: wallpaper=\(wallpaper.project.title ?? "?") dir=\(wallpaper.wallpaperDirectory.path)")
+        if self.exportProperties != nil {
+            audioEnabled = false; playRate = preparingForDisplay ? 0 : 1; playVolume = 0
+            loadScene(from: wallpaper)
+            return
+        }
+        installLiveObservers()
+        loadScene(from: wallpaper)
+    }
+
+    private func installLiveObservers() {
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(systemWillSleep(_:)),
             name: NSWorkspace.screensDidSleepNotification, object: nil)
@@ -171,9 +243,9 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self, self.isActive else { return }
-                self.loadScene(from: self.currentWallpaper)
+                if let requestReload = self.requestReload { requestReload() }
+                else { self.loadScene(from: self.currentWallpaper) }
             }.store(in: &cancellables)
-        loadScene(from: wallpaper)
     }
 
     deinit {
@@ -186,14 +258,17 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
 
     func loadScene(from wallpaper: WEWallpaper) {
         stop()
+        loadFailure = nil
         isActive = true
-        WallpaperPlaybackSessions.shared.register(self, screenId: screenId)
-        volumeSubscription = AppDelegate.shared.wallpaperViewModel.volumePublisher(for: wallpaper)
-            .sink { [weak self] volume in
-                self?.playVolume = volume
-                self?.applyPlayback()
-            }
-        let dir = wallpaper.wallpaperDirectory
+        if exportProperties == nil {
+            WallpaperPlaybackSessions.shared.register(self, screenId: screenId)
+            volumeSubscription = AppDelegate.shared.wallpaperViewModel.volumePublisher(for: wallpaper)
+                .sink { [weak self] volume in
+                    self?.playVolume = volume
+                    self?.applyPlayback()
+                }
+        }
+        let dir = SceneAssetResolver.contentRoot(wallpaper.wallpaperDirectory)
         let sceneFile = wallpaper.project.file  // e.g. "scene.json" or "gifscene.json"
 
         // Derive PKG name from scene file: "scene.json" → "scene.pkg", "gifscene.json" → "gifscene.pkg"
@@ -209,7 +284,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         let resolver = SceneAssetResolver(wallpaperRoot: dir, package: pkgParser, sharedRoot: sharedAssets())
         assetResolver = resolver
         resolver.didReport = { [weak self] issues in
-            guard let self else { return }
+            guard let self, self.exportProperties == nil else { return }
             SceneAssetDiagnostics.shared.update(self.diagnosticID,
                 wallpaper: wallpaper.project.title ?? dir.lastPathComponent, issues: issues)
         }
@@ -239,7 +314,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         let skScene = buildSKScene(from: scene, wallpaperDir: dir)
         Self.log("SKScene built: \(skScene.children.count) children")
         self.skScene = skScene
-        loadAudio(from: scene, wallpaperDir: dir)
+        if exportProperties == nil || preparingForDisplay { loadAudio(from: scene, wallpaperDir: dir) }
         applyPlayback()
     }
 
@@ -303,16 +378,23 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
             while let current = cursor { if current.isHidden { return false }; cursor = current.parent }
             return true
         }
-        let backgroundIndex = scene.objects.indices.filter {
-            scene.objects[$0].image != nil && visible(containers[$0])
-        }.max {
-            let a = (scene.objects[$0].size ?? "0 0").parseVector2()
-            let b = (scene.objects[$1].size ?? "0 0").parseVector2()
-            return a.0 * a.1 < b.0 * b.1
+        // Scene order is paint order: the first drawable, visible image is the
+        // background. Large composition containers and foreground effects are
+        // not backgrounds merely because their exported bounds are larger.
+        var backgroundIndex: Int?
+        var backgroundImage: SKSpriteNode?
+        for index in scene.objects.indices {
+            if preparationCancelled() { break }
+            guard scene.objects[index].image != nil, visible(containers[index]),
+                  let image = buildImageNode(scene.objects[index], wallpaperDir: wallpaperDir) else { continue }
+            backgroundIndex = index
+            backgroundImage = image
+            break
         }
         for (index, object) in scene.objects.enumerated() {
+            if preparationCancelled() { break }
             let holder = containers[index]
-            if index == backgroundIndex && buildVideoNode(object, in: skScene, wallpaperDir: wallpaperDir) {
+            if exportProperties == nil && index == backgroundIndex && buildVideoNode(object, in: skScene, wallpaperDir: wallpaperDir) {
                 if let video = videoNode {
                     video.removeFromParent(); video.position = .zero
                     video.xScale = 1; video.yScale = 1; video.zRotation = 0
@@ -325,7 +407,10 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
                         holder.addChild(poster)
                     }
                 }
-            } else if let image = buildImageNode(object, wallpaperDir: wallpaperDir) {
+            } else if let image = index == backgroundIndex ? backgroundImage : buildImageNode(object, wallpaperDir: wallpaperDir) {
+                if preparingForDisplay && index == backgroundIndex {
+                    preparedBackgroundVideo = image.userData?["videoTexture"] as? SceneVideoTexture
+                }
                 image.position = .zero
                 image.zPosition = CGFloat(index + 1)
                 holder.addChild(image)
@@ -350,18 +435,21 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         // editor navigation state, not a runtime offset for these 2D scene exports.
         let nodes = Dictionary(uniqueKeysWithValues: indices.map { ($0.key, containers[$0.value]) })
         let contentNodes = nodes.compactMapValues { $0.children.first { $0 is SKSpriteNode || $0 is SKLabelNode || $0 is SKVideoNode } }
-        let properties = ScenePropertyStore.shared.values(at: wallpaperDir)
+        let properties = ScenePropertyStore.shared.values(at: currentWallpaper.wallpaperDirectory).merging(exportProperties ?? [:]) { _, override in override }
         skScene.install(objects:rawObjects,nodes:nodes,contentNodes:contentNodes,properties:properties,
-                        storageKey:wallpaperDir.standardizedFileURL.path) { [weak self] path in
+                        storageKey:currentWallpaper.wallpaperDirectory.standardizedFileURL.path, offline: exportProperties != nil) { [weak self] path in
             self?.assetResolver?.data(path, required: true)
         }
-        propertySubscription = NotificationCenter.default.publisher(for: ScenePropertyStore.didChange)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak skScene] notification in
-                guard notification.object as? String == wallpaperDir.standardizedFileURL.path,
-                      let changes = notification.userInfo as? [String: Any] else { return }
-                skScene?.scriptRuntime?.applyUserProperties(changes)
-            }
+        let propertyDirectory = currentWallpaper.wallpaperDirectory
+        if exportProperties == nil {
+            propertySubscription = NotificationCenter.default.publisher(for: ScenePropertyStore.didChange)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak skScene] notification in
+                    guard notification.object as? String == propertyDirectory.standardizedFileURL.path,
+                          let changes = notification.userInfo as? [String: Any] else { return }
+                    skScene?.scriptRuntime?.applyUserProperties(changes)
+                }
+        }
         for (node, textures, durations) in pendingAnimations {
             skScene.bindTextureAnimation(node: node, textures: textures, durations: durations)
         }
@@ -378,6 +466,9 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
                 let player = self.audioPlayers[index].0
                 let bins = source?.snapshot(at:player.currentTime,volume:player.volume,playing:player.isPlaying) ?? Array(repeating:0,count:64)
                 for i in 0..<64 { mixed[i] = min(1,mixed[i]+bins[i]) }
+            }
+            if self.exportProperties != nil {
+                return DispatchQueue.main.sync { ExternalMediaService.shared.spectrum(wallpaper: mixed) }
             }
             return ExternalMediaService.shared.spectrum(wallpaper: mixed)
         }
@@ -551,6 +642,7 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
 
     private func loadAudio(from scene: WEScene, wallpaperDir: URL) {
         for object in scene.objects where object.visible != false && object.startsilent != true {
+            if preparationCancelled() { break }
             guard let path = object.sound?.first else { continue }
             do {
                 guard let data = assetResolver?.data(path, required: true) else {
@@ -599,13 +691,23 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         let textureName = generatedAudio ? "util/white" : (obj.instance?.textures?.first ?? nil)
             ?? (material?.passes?.first?.textures?.first ?? nil)
             ?? (materialPath.hasPrefix("materials/util/solidlayer") ? "util/white" : nil)
+        let binding = (obj.instance?.usertextures ?? material?.passes?.first?.usertextures)?.first?.string
+        let properties = ScenePropertyStore.shared.values(at: currentWallpaper.wallpaperDirectory).merging(exportProperties ?? [:]) { _, new in new }
+        let customPath = binding.flatMap { properties[$0] as? String }
+        let customData = customPath.flatMap { path -> Data? in
+            guard !path.isEmpty else { return nil }
+            if path.hasPrefix("/") { return try? Data(contentsOf: URL(fileURLWithPath: path)) }
+            return assetResolver?.data(path, required: true)
+        }
+        let customSource = customData.flatMap { CGImageSourceCreateWithData($0 as CFData, nil) }
         guard let textureName = textureName,
-              let image = loadTexture(named: textureName, materialDir: materialPath, wallpaperDir: wallpaperDir) else {
+              let image = customData.flatMap({ NSImage(data: $0) })
+                ?? loadTexture(named: textureName, materialDir: materialPath, wallpaperDir: wallpaperDir) else {
             warn("Missing image material/texture: " + imagePath)
             return nil
         }
         var texture = SKTexture(image: image)
-        let animation = animationCache[materialPath + "|" + textureName]
+        let animation = customSource == nil ? animationCache[materialPath + "|" + textureName] : nil
         var frames: [SKTexture] = []
         if let animation {
             let filtering: SKTextureFilteringMode = animation.nearestFiltering ? .nearest : .linear
@@ -635,8 +737,26 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
                 return nil
             }
         }
+        var customFrames: [SKTexture] = [], customDurations: [Double] = []
+        if let source = customSource {
+            for index in 0..<CGImageSourceGetCount(source) {
+                guard let frame = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
+                customFrames.append(SKTexture(cgImage: frame))
+                let info = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]
+                let gif = info?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
+                let duration = gif?[kCGImagePropertyGIFUnclampedDelayTime] as? Double
+                    ?? gif?[kCGImagePropertyGIFDelayTime] as? Double ?? 0.1
+                customDurations.append(duration > 0.01 ? duration : 0.1)
+            }
+            if let first = customFrames.first { texture = first }
+        }
         let node = SKSpriteNode(texture: texture)
-        if let video = videoTextures[materialPath + "|" + textureName] {
+        if !customFrames.isEmpty {
+            node.userData = NSMutableDictionary()
+            node.userData?["presetTexture"] = customPath
+            if customFrames.count > 1 { pendingAnimations.append((node, customFrames, customDurations)) }
+        }
+        if customSource == nil, let video = videoTextures[materialPath + "|" + textureName] {
             node.userData = NSMutableDictionary(); node.userData?["videoTexture"] = video
         }
         if let animation, !frames.isEmpty {
@@ -710,7 +830,9 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     private func buildTextNode(_ object: WESceneObject, wallpaperDir: URL) -> SKLabelNode {
         var font = NSFont.systemFont(ofSize: object.pointsize ?? 24)
         if let path = object.font {
-            if let cached = fontCache[path] { font = cached }
+            if path.hasPrefix("systemfont_") {
+                font = NSFont(name: String(path.dropFirst("systemfont_".count)), size: 24) ?? NSFont.systemFont(ofSize: 24)
+            } else if let cached = fontCache[path] { font = cached }
             else if let bytes = assetResolver?.data(path, required: true),
                     let provider = CGDataProvider(data: bytes as CFData), let cgFont = CGFont(provider) {
                 // An in-memory font avoids global registration conflicts across displays.
@@ -725,12 +847,16 @@ class SceneWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
         let c = (object.color ?? "1 1 1").parseColor()
         let size = (object.size ?? "0 0").parseVector2()
         let padding = (object.padding ?? "0 0").parseVector2()
+        let raw = rawObjects.first { $0["id"] as? Int == object.id } ?? [:]
+        let maxWidth = (raw["limitwidth"] as? Bool == true) ? (raw["maxwidth"] as? NSNumber).map { CGFloat($0.doubleValue) } : nil
+        let maxRows = (raw["limitrows"] as? Bool == true) ? (raw["maxrows"] as? Int ?? 1) : 0
         let node = SceneTextNode(text: object.text ?? "", font: font,
                                  color: NSColor(red: c.r, green: c.g, blue: c.b, alpha: 1),
                                  size: CGSize(width: size.0, height: size.1),
                                  padding: CGSize(width: padding.0, height: padding.1),
                                  horizontal: object.horizontalalign ?? "center",
-                                 vertical: object.verticalalign ?? "center")
+                                 vertical: object.verticalalign ?? "center", maxWidth: maxWidth, maxRows: maxRows,
+                                 ellipsis: raw["limituseellipsis"] as? Bool == true)
         node.alpha = object.alpha ?? 1
         return node
     }
@@ -1113,6 +1239,20 @@ extension SceneWallpaperViewModel {
                     } else { warn("Missing opacity mask: " + name) }
                 }
                 body = "vec4 c = \(previous)(uv); c.a *= \(n("alpha", 1)) * \(mask); return c;"
+            case "tint":
+                let mode = pass?.combos?["BLENDMODE"] ?? 30
+                guard [22, 30].contains(mode) else { warn("Unsupported tint blend mode: " + effect.file); continue }
+                var mask = "1.0"
+                if let textures = pass?.textures, textures.count > 1, let name = textures[1],
+                   let image = loadTexture(named: name, materialDir: "materials/", wallpaperDir: wallpaperDir) {
+                    let uniformName = "tintMask\(step)"
+                    uniforms.append(SKUniform(name: uniformName, texture: SKTexture(image: image)))
+                    mask = "texture2D(\(uniformName), uv).r"
+                }
+                let color = v("color", "1 0 0", 3)
+                let tinted = mode == 30 ? "vec3(max(c.r, max(c.g, c.b))) * \(color)"
+                    : "mix(min(\(color) * \(color) / max(vec3(0.000001), vec3(1.0) - c.rgb), vec3(1.0)), vec3(1.0), step(vec3(1.0), c.rgb))"
+                body = "vec4 c = result; c.rgb = mix(c.rgb, \(tinted), \(n("alpha", 1)) * \(mask)); return c;"
             case "colorkey":
                 body = """
                 vec4 c = result;
@@ -1225,7 +1365,7 @@ extension SceneWallpaperViewModel {
             case "Simple_Audio_Bars":
                 // Port the authored bottom-bars/replace-alpha variant. Other combinations
                 // remain diagnosed instead of silently rendering a different effect.
-                let defaults = ["SHAPE": 0, "TRANSPARENCY": 1, "BLENDMODE": 0, "A_SMOOTH_CURVE": 0, "ANTIALIAS": 0, "CLIP_LOW": 0, "CLIP_HIGH": 0]
+                let defaults = ["SHAPE": 0, "TRANSPARENCY": 1, "BLENDMODE": 0, "A_SMOOTH_CURVE": 0, "ANTIALIAS": 0]
                 guard defaults.allSatisfy({ (pass?.combos?[$0.key] ?? $0.value) == $0.value }) else {
                     warn("Unsupported audio bars mode: " + effect.file); continue
                 }
@@ -1243,6 +1383,8 @@ extension SceneWallpaperViewModel {
                 vec2 bounds = \(v("Lower/Upper Bar Bounds", "0 1", 2));
                 float height = mix(bounds.x, bounds.y, volume);
                 float bar = step(uv.y, height) * step(abs(fract(uv.x*count)*2.0-1.0), 1.0-\(n("Bar Spacing", 0.1)));
+                \((pass?.combos?["CLIP_LOW"] ?? 0) == 1 ? "bar *= 1.0 - step(uv.y, bounds.x);" : "")
+                \((pass?.combos?["CLIP_HIGH"] ?? 0) == 1 ? "bar *= step(uv.y, bounds.y);" : "")
                 return vec4(\(v("Bar Color", "1 1 1", 3)), bar * \(n("ui_editor_properties_opacity", 1)));
                 """
             case "scroll":

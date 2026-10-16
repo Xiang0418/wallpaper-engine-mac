@@ -13,3 +13,8 @@ Thumbs.db
 
 ## Playwright MCP
 .playwright-mcp/
+
+## Runtime caches and profiling
+WorkshopPreviews/
+*.profraw
+__pycache__/

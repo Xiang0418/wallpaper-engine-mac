@@ -109,10 +109,10 @@ extension URL {
         model.selectedScreenId = "display-b"
         model.updateMainDisplayAudioSource(screenId: "display-a")
         check(model.currentWallpaper.wallpaperDirectory == b.wallpaperDirectory, "Audio main display does not change wallpaper editing selection")
-        model.currentWallpaper = a
+        model.wallpapers[model.selectedScreenId] = a
         check(model.wallpaper(for: "display-a").wallpaperDirectory == a.wallpaperDirectory && model.wallpaper(for: "display-b").wallpaperDirectory == a.wallpaperDirectory,
               "Wallpaper picker changes only its selected display")
-        model.currentWallpaper = b
+        model.wallpapers[model.selectedScreenId] = b
         model.updateMainDisplayAudioSource(screenId: "display-b")
         check(model.wallpaper(for: "display-a").wallpaperDirectory == a.wallpaperDirectory && model.wallpaper(for: "display-b").wallpaperDirectory == b.wallpaperDirectory,
               "Changing main display preserves different wallpapers on both screens")

@@ -36,6 +36,19 @@ struct ContentView: View {
                 if viewModel.isStaging {
                     VStack(spacing: 5) {
                         TopTabBar(contentViewModel: viewModel)
+                        LockScreenProgressView().padding(.horizontal, 10)
+                        ForEach(wallpaperViewModel.loadingWallpapers.keys.sorted(), id: \.self) { id in
+                            HStack {
+                                ProgressView().controlSize(.small)
+                                Text("正在載入：" + (wallpaperViewModel.loadingWallpapers[id] ?? ""))
+                                    .lineLimit(1)
+                                Text("完成前保留原桌布").foregroundStyle(.secondary)
+                            }.font(.callout).padding(.horizontal, 10)
+                        }
+                        ForEach(wallpaperViewModel.wallpaperLoadErrors.keys.sorted(), id: \.self) { id in
+                            Text(wallpaperViewModel.wallpaperLoadErrors[id] ?? "")
+                                .font(.caption).foregroundStyle(.red).padding(.horizontal, 10)
+                        }
                         switch viewModel.topTabBarSelection {
                         case 0:
                             ExplorerTopBar(contentViewModel: viewModel)

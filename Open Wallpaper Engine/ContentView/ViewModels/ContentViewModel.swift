@@ -100,7 +100,14 @@ class ContentViewModel: ObservableObject, DropDelegate {
     /// Show all the wallpaper inside application wallpaper directory, without being filtered
     private var allWallpapers: [WEWallpaper] {
         self.urls.map({ url in
-            if let data = try? Data(contentsOf: url.appending(path: "project.json")), let project = try? JSONDecoder().decode(WEProject.self, from: data) {
+            if let data = try? Data(contentsOf: url.appending(path: "project.json")), var project = try? JSONDecoder().decode(WEProject.self, from: data) {
+                if project.dependency != nil,
+                   let resolvedData = try? Data(contentsOf: url.appendingPathComponent(".preset-runtime/project.json")),
+                   let resolved = try? JSONDecoder().decode(WEProject.self, from: resolvedData) {
+                    project.file = resolved.file
+                    project.type = resolved.type
+                    project.general = resolved.general
+                }
                 return WEWallpaper(using: project, where: url)
             } else {
                 return WEWallpaper(using: .invalid, where: url)

@@ -29,6 +29,9 @@ class MainWindowController: NSWindowController, NSWindowDelegate {
         self.window.titlebarAppearsTransparent = true
         self.window.setFrameAutosaveName("MainWindow")
         self.window.isMovableByWindowBackground = true
+        // Initial presentation can finish behind the What's New sheet without
+        // delivering another key-window event. Build the visible library now.
+        AppDelegate.shared.contentViewModel.isStaging = true
         self.window.contentView = NSHostingView(rootView: ContentView(
                 viewModel: AppDelegate.shared.contentViewModel,
                 wallpaperViewModel: AppDelegate.shared.wallpaperViewModel
@@ -46,6 +49,7 @@ class MainWindowController: NSWindowController, NSWindowDelegate {
     
     func windowWillClose(_ notification: Notification) {
         AppDelegate.shared.contentViewModel.isStaging = false
+        AppDelegate.shared.hideDockIconIfLastWindowCloses(notification.object as? NSWindow)
     }
     
     func windowDidResignKey(_ notification: Notification) {

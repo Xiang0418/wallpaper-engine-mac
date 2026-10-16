@@ -66,6 +66,8 @@ class WorkshopAPIService {
         let url = try Self.searchURL(query: query, tags: tags, excludedTags: excludedTags,
                                      sortOrder: sortOrder, page: page, perPage: perPage, apiKey: Self.loadAPIKey())
 
+        let started = ProcessInfo.processInfo.systemUptime
+        defer { NSLog("[WorkshopPerformance] search seconds=%.3f", ProcessInfo.processInfo.systemUptime - started) }
         let (data, response) = try await URLSession.shared.data(from: url)
 
         guard let httpResponse = response as? HTTPURLResponse else {

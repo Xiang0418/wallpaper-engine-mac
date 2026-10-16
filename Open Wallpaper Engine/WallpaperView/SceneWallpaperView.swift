@@ -1,71 +1,66 @@
-//
-//  SceneWallpaperView.swift
-//  Open Wallpaper Engine
-//
-//  Created by Haren on 2023/8/13.
-//
-
 import Cocoa
 import SwiftUI
 import SpriteKit
+import Combine
 
 struct SceneWallpaperView: NSViewRepresentable {
     @ObservedObject var wallpaperViewModel: WallpaperViewModel
-    @StateObject var viewModel: SceneWallpaperViewModel
     let screenId: String
 
-    init(wallpaperViewModel: WallpaperViewModel, screenId: String) {
-        self.wallpaperViewModel = wallpaperViewModel
-        self.screenId = screenId
-        self._viewModel = StateObject(wrappedValue: SceneWallpaperViewModel(wallpaper: wallpaperViewModel.wallpaper(for: screenId), screenId: screenId))
-    }
-
     class Coordinator {
-        let model: SceneWallpaperViewModel
-        init(_ model: SceneWallpaperViewModel) { self.model = model }
+        var model: SceneWallpaperViewModel?
+        var sceneChanges: AnyCancellable?
+        var requestedSource: URL?
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(viewModel) }
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
     static func dismantleNSView(_ view: SKView, coordinator: Coordinator) {
+        coordinator.sceneChanges = nil
         view.presentScene(nil)
-        coordinator.model.stop()
+        coordinator.model?.stop()
     }
 
     func makeNSView(context: Context) -> SKView {
-        let skView = InteractiveWallpaperView(frame: .zero)
-        skView.ignoresSiblingOrder = false
-        skView.allowsTransparency = false
-        skView.preferredFramesPerSecond = Int(AppDelegate.shared.globalSettingsViewModel.settings.fps)
-
-        if let scene = viewModel.skScene {
-            scene.scaleMode = .fill
-            skView.presentScene(scene)
-        }
-
-        return skView
+        let view = InteractiveWallpaperView(frame: .zero)
+        view.ignoresSiblingOrder = false
+        view.allowsTransparency = false
+        return view
     }
 
-    func updateNSView(_ skView: SKView, context: Context) {
-        let selectedWallpaper = wallpaperViewModel.wallpaper(for: screenId)
-        let currentWallpaper = viewModel.currentWallpaper
-
-        // Update scene if wallpaper changed
-        if selectedWallpaper.wallpaperDirectory.appending(path: selectedWallpaper.project.file)
-            != currentWallpaper.wallpaperDirectory.appending(path: currentWallpaper.project.file) {
-            viewModel.currentWallpaper = selectedWallpaper
+    func updateNSView(_ view: SKView, context: Context) {
+        if let prepared = wallpaperViewModel.takePreparedScene(for: screenId) {
+            // Preparation is complete: swap in one main-thread operation.
+            context.coordinator.sceneChanges = nil
+            prepared.skScene?.scaleMode = .fill
+            view.presentScene(prepared.skScene)
+            context.coordinator.model?.stop()
+            context.coordinator.model = prepared
+            prepared.requestReload = { [weak wallpaperViewModel, weak prepared] in
+                guard let prepared else { return }
+                wallpaperViewModel?.setWallpaper(prepared.currentWallpaper, for: screenId)
+            }
+            context.coordinator.sceneChanges = prepared.$skScene.receive(on: DispatchQueue.main)
+                .sink { [weak view] scene in
+                    guard let scene, view?.scene !== scene else { return }
+                    scene.scaleMode = .fill
+                    view?.presentScene(scene)
+                }
+            prepared.activatePreparedScene()
+        } else if context.coordinator.model == nil {
+            // Restored assignments at launch also prepare outside the main thread.
+            let wallpaper = wallpaperViewModel.wallpaper(for: screenId)
+            let source = wallpaper.wallpaperDirectory.appendingPathComponent(wallpaper.project.file)
+            if context.coordinator.requestedSource != source {
+                context.coordinator.requestedSource = source
+                DispatchQueue.main.async {
+                    guard wallpaperViewModel.wallpaper(for: screenId).wallpaperDirectory == wallpaper.wallpaperDirectory,
+                          wallpaperViewModel.loadingWallpapers[screenId] == nil else { return }
+                    wallpaperViewModel.setWallpaper(wallpaper, for: screenId)
+                }
+            }
         }
-
-        // Present scene if available and not already presented
-        if let scene = viewModel.skScene, skView.scene !== scene {
-            scene.scaleMode = .fill
-            skView.presentScene(scene)
-        }
-
-        // Update FPS
-        skView.preferredFramesPerSecond = Int(AppDelegate.shared.globalSettingsViewModel.settings.fps)
-
-        // Pause/resume based on play rate
-        skView.isPaused = wallpaperViewModel.playRate == 0
+        view.preferredFramesPerSecond = Int(AppDelegate.shared.globalSettingsViewModel.settings.fps)
+        view.isPaused = wallpaperViewModel.playRate == 0
     }
 }

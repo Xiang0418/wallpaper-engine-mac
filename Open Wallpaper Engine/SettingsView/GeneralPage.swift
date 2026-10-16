@@ -61,6 +61,7 @@ struct GeneralPage: SettingsPage {
             } header: {
                 Label("Audio", systemImage: "speaker.3.fill")
             }
+            LockScreenSettingsSection()
             EngineAssetsSettingsSection(assets: .shared, steam: AppDelegate.shared.contentViewModel.steamCmd)
             ExternalMediaSettingsSection(media: media)
             // MARK: Video
@@ -125,7 +126,7 @@ struct ExternalMediaSettingsSection: View {
                 Text("Album artwork follows the player shown in Control Center. Audio spectrum includes all other apps and excludes this wallpaper app.")
                     .font(.caption).foregroundStyle(.secondary)
                 if media.systemAudioEnabled {
-                    Text("Allow access in System Settings → Privacy & Security → Screen & System Audio Recording. Audio is analyzed locally and is not saved.")
+                    Text("Uses audio-only capture on macOS 14.2 or later. Allow system audio recording in Privacy & Security. No screen content is captured; audio is analyzed locally and is not saved.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 if media.artworkEnabled || media.systemAudioEnabled {

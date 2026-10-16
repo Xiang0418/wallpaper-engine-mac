@@ -28,6 +28,7 @@ final class InteractiveWallpaperScene: SKScene {
     private var effectTime: Double = 0
     private let mediaConsumerID = UUID()
     private var mediaInstalled = false
+    private var offlineExport = false
     private var artworkRevision = -1
     private var mediaBindings: [SceneMediaArtworkBinding] = []
 
@@ -52,8 +53,9 @@ final class InteractiveWallpaperScene: SKScene {
         }
     }
 
-    func install(objects: [[String: Any]], nodes: [Int: SKNode], contentNodes: [Int: SKNode], properties: [String: Any], storageKey: String,
+    func install(objects: [[String: Any]], nodes: [Int: SKNode], contentNodes: [Int: SKNode], properties: [String: Any], storageKey: String, offline: Bool = false,
                  asset: (String) -> Data?) {
+        offlineExport = offline
         scriptRuntime = SceneScriptRuntime(objects: objects, nodes: nodes, contentNodes: contentNodes, properties: properties, size: size, storageKey: storageKey)
         for (index,object) in objects.enumerated() {
             guard let id = object["id"] as? Int, let node = nodes[id] else { continue }
@@ -74,8 +76,8 @@ final class InteractiveWallpaperScene: SKScene {
             }
 
         }
-        mediaInstalled = true
-        ExternalMediaService.shared.setConsumer(mediaConsumerID, active: !isPaused)
+        mediaInstalled = !offline
+        if mediaInstalled { ExternalMediaService.shared.setConsumer(mediaConsumerID, active: !isPaused) }
         // Keep the authored transform available to scripts. Viewport adaptation
         // moves a separate parent, including the cover and all sibling effects.
         var adapted = Set<ObjectIdentifier>()
@@ -106,8 +108,14 @@ final class InteractiveWallpaperScene: SKScene {
         guard !stopped, !isPaused else { return }
         let dt = lastTime.map { min(0.1, max(0, currentTime-$0)) } ?? 0
         lastTime = currentTime
-        let media = ExternalMediaService.shared
-        for (node, animation) in textureAnimations where !(node.userData?["mediaThumbnail"] as? Bool == true && media.artworkTexture != nil) {
+        let snapshot: () -> (SKTexture?, Int, NowPlayingSnapshot, Bool) = {
+            let media = ExternalMediaService.shared
+            return (media.artworkTexture, media.artworkRevision, media.nowPlaying, media.artworkEnabled)
+        }
+        let (artwork, revision, playing, enabled) = offlineExport && !Thread.isMainThread
+            ? DispatchQueue.main.sync(execute: snapshot) : snapshot()
+        scriptRuntime?.applyMedia(title: playing.title, artist: playing.artist, playing: playing.playing, enabled: enabled)
+        for (node, animation) in textureAnimations where !(node.userData?["mediaThumbnail"] as? Bool == true && artwork != nil) {
             animation.advance(dt); node.texture = animation.texture
         }
         for (sprite, video) in videoSprites { video.update(sprite) }
@@ -123,9 +131,9 @@ final class InteractiveWallpaperScene: SKScene {
         scriptRuntime?.setSpectrum(left: bins, right: bins)
         scriptRuntime?.update(delta: dt, cursor: point ?? CGPoint(x: -1e6, y: -1e6))
         for puppet in puppets { puppet.advance(dt) }
-        if media.artworkRevision != artworkRevision {
-            mediaBindings.forEach { $0.apply(media.artworkTexture) }
-            artworkRevision = media.artworkRevision
+        if revision != artworkRevision {
+            mediaBindings.forEach { $0.apply(artwork) }
+            artworkRevision = revision
         }
         updateViewportLayout()
         for system in spriteParticles {
@@ -182,6 +190,13 @@ final class InteractiveWallpaperScene: SKScene {
                 x:shift(desired.x-root.position.x, low:bounds.minX, high:bounds.maxX, min:safe.minX, max:safe.maxX),
                 y:shift(desired.y-root.position.y, low:bounds.minY, high:bounds.maxY, min:safe.minY, max:safe.maxY))
         }
+    }
+
+    func activateLiveMedia() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        offlineExport = false
+        mediaInstalled = true
+        ExternalMediaService.shared.setConsumer(mediaConsumerID, active: !isPaused && !stopped)
     }
 
     func stop() {

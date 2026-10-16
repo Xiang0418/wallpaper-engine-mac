@@ -26,6 +26,7 @@ enum SceneScriptBootstrap {
     const localStorage={get:key=>revive(JSON.parse(nativeRead(String(key))||'null')),set:(key,v)=>nativeWrite(String(key),JSON.stringify(v))};
     function revive(v){if(v&&typeof v==='object'&&'x'in v&&'y'in v)return new Vec3(v);return v;}
     function vector(v){if(typeof v==='string')return new Vec3(...v.trim().split(/\s+/).map(Number));return revive(v);}
+    const MediaPlaybackEvent = Object.freeze({PLAYBACK_STOPPED:0, PLAYBACK_PLAYING:1, PLAYBACK_PAUSED:2});
     let userProperties={};
     function resolve(v){if(v&&typeof v==='object'&&!Array.isArray(v)&&'value'in v){if(typeof v.user==='string'&&v.user in userProperties)return resolve(userProperties[v.user]);if(v.user&&typeof v.user==='object'&&v.user.name in userProperties)return String(resolve(userProperties[v.user.name]))===String(v.user.condition);return resolve(v.value);}return v;}
     const vectorKeys=new Set(['origin','scale','angles','size','color']);
@@ -38,7 +39,7 @@ enum SceneScriptBootstrap {
       userProperties=properties;engine.canvasSize=new Vec2(width,height);
       for(const o of raw){const l={id:o.id,name:o.name||'',origin:new Vec3(),scale:new Vec3(1),angles:new Vec3(),size:new Vec2(128),visible:true,alpha:1};
         for(const k of Object.keys(o))if(k!=='effects')l[k]=typed(k,resolve(o[k]));
-        l.getParent=()=>layers.find(p=>p.id===o.parent)||null; layers.push(l);}
+        l.getParent=()=>layers.find(p=>p.id===o.parent)||null; l.getEffect=index=>(l.effects||[])[index]; layers.push(l);}
       function walk(raw,owner,layer,path){for(const k of Object.keys(raw)){
         const v=raw[k];if(v&&typeof v==='object'&&!Array.isArray(v)&&'value'in v){
           owner[k]=typed(k,resolve(v));if(v.user)bindings.push({raw:v,owner,key:k});
@@ -49,7 +50,7 @@ enum SceneScriptBootstrap {
               let code=v.script.replace(/import\s+\*\s+as\s+WEMath\s+from\s+['"]WEMath['"]\s*;?/g,'');
               if(/\bimport\s/.test(code))throw Error('Unsupported SceneScript import');
               code=code.replace(/\bexport\s+(?=(?:function|let|var|const)\b)/g,'');
-              const names=['init','update','destroy','applyUserProperties','cursorDown','cursorUp','cursorClick','cursorMove','cursorEnter','cursorLeave'];
+              const names=['init','update','destroy','applyUserProperties','cursorDown','cursorUp','cursorClick','cursorMove','cursorEnter','cursorLeave','mediaStatusChanged','mediaPropertiesChanged','mediaPlaybackChanged'];
               const ret=names.map(n=>n+':typeof '+n+"==='function'?"+n+':undefined').join(',');
               s.events=new Function('thisLayer',code+'\nreturn {'+ret+",properties:typeof scriptProperties==='undefined'?null:scriptProperties};")(layer);
               configure(s);scripts.push(s);
@@ -73,6 +74,7 @@ enum SceneScriptBootstrap {
     function tick(dt,x,y){engine.frametime=dt;engine.runtime+=dt;input.cursorWorldPosition=new Vec3(x,y,0);for(const s of scripts)assign(s,invoke(s,'update',s.owner[s.key]));}
     function cursorEvent(name,id,x,y){const e={worldPosition:new Vec3(x,y,0),localPosition:new Vec3(x,y,0)};for(const s of scripts)if(s.layer.id===id)invoke(s,name,e);}
     function setSpectrum(left,right){for(const b of audioBuffers)for(let i=0;i<b.average.length;i++){const j=Math.floor(i*left.length/b.average.length);b.left[i]=left[j]||0;b.right[i]=right[j]||0;b.average[i]=(b.left[i]+b.right[i])/2;}}
+    function dispatchMedia(name,event){for(const s of scripts)invoke(s,name,Object.assign({},event));}
     function shutdown(){for(const s of scripts)invoke(s,'destroy');scripts.length=0;layers.length=0;bindings.length=0;audioBuffers.length=0;}
     """#
 }
@@ -87,14 +89,16 @@ final class ScenePropertyStore {
     private func key(_ directory: URL) -> String { "SceneProperties." + directory.standardizedFileURL.path }
 
     func definitions(at directory: URL) -> [String: [String: Any]] {
-        guard let data = try? Data(contentsOf: directory.appendingPathComponent("project.json")),
+        let runtime = directory.appendingPathComponent(".preset-runtime/project.json")
+        let metadata = FileManager.default.fileExists(atPath: runtime.path) ? runtime : directory.appendingPathComponent("project.json")
+        guard let data = try? Data(contentsOf: metadata),
               let project = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let general = project["general"] as? [String: Any] else { return [:] }
         return general["properties"] as? [String: [String: Any]] ?? [:]
     }
     func values(at directory: URL) -> [String: Any] {
         let definitions = definitions(at: directory)
-        var values = definitions.compactMapValues { $0["value"] }
+        var values = definitions.filter { $0.value["type"] as? String != "text" }.compactMapValues { $0["value"] }
         for (name, value) in defaults.dictionary(forKey: key(directory)) ?? [:] {
             if let definition = definitions[name], let valid = validated(value, definition: definition) { values[name] = valid }
         }

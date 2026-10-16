@@ -1,7 +1,7 @@
 import AppKit
 import SpriteKit
 import AVFoundation
-import ScreenCaptureKit
+import CoreAudio
 
 final class FakeMedia: NowPlayingReading {
     var received: ((NowPlayingSnapshot, CGImage?) -> Void)?
@@ -84,6 +84,7 @@ final class FakeAudio: ExternalAudioCapturing {
         let noArtwork = NowPlayingSnapshot.decode(try message(["bundleIdentifier":"org.test.player", "title":"Track B", "playing":true]))!
         bridge.received?(snapshot, image)
         check(service.artworkTexture != nil && service.trackTitle.contains("Track A"), "Metadata updates shared artwork")
+        check(service.nowPlaying.title == "Track A" && service.nowPlaying.artist == "Artist" && service.nowPlaying.playing, "Script snapshot retains separate title, artist and playback state")
         let revision = service.artworkRevision
         bridge.received?(snapshot, image)
         check(service.artworkRevision == revision, "Unchanged artwork avoids GPU texture recreation")
@@ -92,6 +93,7 @@ final class FakeAudio: ExternalAudioCapturing {
         bridge.received?(snapshot, image)
         bridge.failed?()
         check(service.artworkTexture == nil && service.trackTitle.isEmpty, "Bridge failure clears stale cover")
+        check(service.nowPlaying.title.isEmpty && service.nowPlaying.artist.isEmpty && !service.nowPlaying.playing, "Bridge failure clears script metadata and playback state")
         service.artworkEnabled = false; service.systemAudioEnabled = false
         check(defaults.bool(forKey: "ExternalMedia.audio") == false && defaults.bool(forKey: "ExternalMedia.artwork") == false, "Independent preferences persist")
 
@@ -110,7 +112,10 @@ final class FakeAudio: ExternalAudioCapturing {
 
         let samples = (0..<1024).map { sin(2 * Float.pi * 32 * Float($0) / 1024) * 0.5 }
         let sink = SystemAudioSpectrumSink()
+        var signalNotifications = 0
+        sink.didReceiveSignal = { signalNotifications += 1 }
         sink.consume(channels: [samples, samples.map { -$0 }], at: 10)
+        check(signalNotifications == 1, "Real PCM signal is reported for live capture verification")
         check(sink.snapshot(at: 10.01).max()! > 0.1, "Antiphase stereo produces a real spectrum")
         check(sink.snapshot(at: 10.4).allSatisfy { $0 == 0 }, "Stopped callbacks cannot leave a frozen spectrum")
         sink.consume(channels: [Array(repeating: 0, count: 1024)], at: 11)
@@ -118,7 +123,7 @@ final class FakeAudio: ExternalAudioCapturing {
         sink.consume(channels: [samples], at: 12); sink.reset()
         check(sink.snapshot(at: 12.01).allSatisfy { $0 == 0 }, "Stopping capture clears PCM and spectrum")
 
-        // Exercise the actual CoreMedia callback, both planar and interleaved.
+        // Exercise the Process Tap AudioBufferList callback, planar and interleaved.
         for interleaved in [false, true] {
             let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 48000, channels: 2, interleaved: interleaved)!
             let pcm = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1024)!
@@ -127,20 +132,8 @@ final class FakeAudio: ExternalAudioCapturing {
                 if interleaved { pcm.floatChannelData![0][frame*2] = samples[frame]; pcm.floatChannelData![0][frame*2+1] = -samples[frame] }
                 else { pcm.floatChannelData![0][frame] = samples[frame]; pcm.floatChannelData![1][frame] = -samples[frame] }
             }
-            var timing = CMSampleTimingInfo(duration: CMTime(value: 1, timescale: 48000), presentationTimeStamp: .zero, decodeTimeStamp: .invalid)
-            var buffer: CMSampleBuffer?
-            check(CMSampleBufferCreate(allocator: kCFAllocatorDefault, dataBuffer: nil, dataReady: false, makeDataReadyCallback: nil, refcon: nil,
-                                      formatDescription: format.formatDescription, sampleCount: 1024, sampleTimingEntryCount: 1, sampleTimingArray: &timing,
-                                      sampleSizeEntryCount: 0, sampleSizeArray: nil, sampleBufferOut: &buffer) == noErr, "Create CoreMedia PCM fixture")
-            check(CMSampleBufferSetDataBufferFromAudioBufferList(buffer!, blockBufferAllocator: kCFAllocatorDefault, blockBufferMemoryAllocator: kCFAllocatorDefault,
-                                                               flags: 0, bufferList: pcm.audioBufferList) == noErr, "Attach PCM data")
-            CMSampleBufferSetDataReady(buffer!)
-            // Stream is unused by the sink; a disconnected object requires no TCC permission.
-            let stream = SCStream(filter: SCContentFilter(), configuration: SCStreamConfiguration(), delegate: nil)
-            sink.reset(); sink.stream(stream, didOutputSampleBuffer: buffer!, of: .screen)
-            check(sink.snapshot().allSatisfy { $0 == 0 }, "Screen callbacks are ignored by audio analysis")
-            sink.reset(); sink.stream(stream, didOutputSampleBuffer: buffer!, of: .audio)
-            check(sink.snapshot().max()! > 0.1, "CoreMedia conversion \(interleaved ? "interleaved" : "planar")")
+            sink.reset(); sink.consume(bufferList: pcm.audioBufferList)
+            check(sink.snapshot().max()! > 0.1, "Process Tap PCM conversion \(interleaved ? "interleaved" : "planar")")
         }
         service.artworkEnabled = true; service.systemAudioEnabled = true
         let stopsBeforeShutdown = bridge.stops

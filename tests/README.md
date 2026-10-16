@@ -338,14 +338,13 @@ media integration is outside this implementation.
   stream command is used. Private MediaRemote access can break after macOS
   updates and is unsuitable for an App Store build. Errors expose a retry action;
   the wallpaper continues using its original artwork.
-- ScreenCaptureKit supplies audio from all other apps (not just the selected
-  Control Center player). No screen output is registered, no microphone is
-  captured, and no audio is stored. macOS Screen & System Audio Recording
-  permission is required. After granting permission, retry; relaunch if macOS
-  requests it. Protected content may not supply capturable audio.
-- System audio replaces the package-music spectrum while enabled, even when
-  access fails (silence is shown). Disable it to restore the package analyzer.
-  This does not mute the wallpaper's own music; its volume remains independent.
+- Core Audio Process Tap captures other apps' output on macOS 14.2+. It excludes
+  this process, uses an unmuted private tap and private aggregate device, and
+  registers only audio callbacks. No screen or microphone is captured and no
+  audio is saved. `NSAudioCaptureUsageDescription` describes system-audio access.
+  Unsupported OS versions or capture errors never fall back to ScreenCaptureKit.
+- The external spectrum is mixed with the package-music spectrum, without
+  capturing this app twice. Disabling external audio preserves package analysis.
 - One bridge and one capture stream are shared across displays. All scene
   consumers paused/stopped or system sleep releases them; resume reconnects.
   A stalled audio callback expires in 300 ms. Revocation/capture errors display a
@@ -374,7 +373,7 @@ bash tests/run-external-media.sh --live-now-playing
 
 This builds a temporary app bundle and checks the production Swift reader plus
 bundled adapter deliver decoded artwork. It reads no screen pixels and sends no
-playback commands. Live ScreenCaptureKit still needs manual verification in the
+playback commands. Live Core Audio Process Tap still needs manual verification in the
 built app: grant permission, play/pause Chrome YouTube, switch songs/players,
 check silence/revocation/retry, and pause/resume/sleep with multiple displays.
 
@@ -555,6 +554,105 @@ Format reference: [wqLouis/pkg_parser](https://github.com/wqLouis/pkg_parser/tre
 The Swift parser was implemented against that layout and locally verified clip
 IDs/trailers; no proprietary Wallpaper Engine resources are redistributed.
 
+### Audio-only capture validation
+
+`bash tests/run-external-media.sh` covers planar/interleaved Core Audio buffers,
+first-signal reporting, antiphase stereo, silence, stale sample expiry, reset,
+shared consumer lifecycle and spectrum mixing. `run-scene-sprite-effects.sh`
+verifies three audio styles with injected spectra on a real GPU. A separate live
+check in the signed app must play audio from another process and confirm
+“Receiving system audio (audio only)” and that Open Wallpaper Engine no longer
+appears in the screen-sharing list. Automation tools may independently appear
+in that list; distinguish the app names. Denial/revocation and unsupported OS
+cases must show an error without creating a screen-capture fallback.
+
+## Lock-screen Aerial synchronization
+
+```sh
+bash tests/run-lock-screen.sh
+# Optional native encoder/decode smoke test; needs an unlocked macOS hardware encoder session:
+bash tests/run-lock-screen.sh /absolute/path/to/a/short-video.mp4
+```
+
+The store tests use isolated temporary files: original backup preservation across replacements,
+restore, interrupted manifest commit, external edits, and corrupt-backup refusal.
+The synchronization test uses the production service/store with a delayed encoder fixture and
+suppressed system-process reload; checks newest-selection wins, unsupported source fallback,
+and disable during conversion. It does not touch real wallpaper settings.
+The optional encoder test runs production VideoToolbox encoding and verifies cancellation,
+a decodable frame, no audio, >=180 seconds, and temporal layer markers.
+
+Manual integration: enable for the video display, wait for “已同步”, change that display's video,
+wait again, lock twice and check motion/unlock. Web selections must retain the previous movie; scene selections record a silent animation. The app must not replace Aerial with its menu-bar static preview on launch or exit.
+Disable restores the original movie and the complete original wallpaper Index.plist;
+verify appearance manually. These tests do not prove that macOS plays indefinitely.
+
+2026-10-12 local validation: signed universal app build succeeded; store/service tests passed;
+native encoding of the Atri source passed. In the installed app, switching the built-in display
+from its scene to Atri triggered conversion and “已同步” without a manual sync action.
+The installed system slot matched the production manifest and decoded as 3840×2174,
+180.375 seconds, one video track and no audio. Restored the original scene assignment;
+sync remains enabled for the built-in display and retains the last Atri lock movie.
+The preceding standalone Aerial probe had user-confirmed motion and two normal unlocks;
+the integrated app's lock-screen observation still requires the user's next manual lock.
+
+
+### Scene lock-screen recording
+
+`bash tests/run-lock-screen-scene.sh /absolute/path/to/3817518265 /absolute/path/to/output-prefix`
+
+Uses the production scene loader, SpriteKit Metal renderer and recorder. Checks clock/day/date
+overrides, unchanged original property values, movie duration, decodable frames and differing
+frames at 2 and 8 seconds. Inspect the two PNGs for correct orientation/content and missing clock.
+The scene is rendered independently; no display/window capture or screen-recording permission is used.
+Records 15 seconds at 30 fps and caches by source package/project/properties/version. Embedded
+video textures run in real time. A loop seam is possible; audio and interactive responses are not live
+on the lock screen. The current tested scene exposes clock toggles; baked-in clocks in other
+scenes cannot be removed by property overrides.
+
+2026-10-12 scene follow-up: fixed offscreen background recording by using decoded
+video textures instead of SKVideoNode (the latter could turn black once its poster
+was hidden in the running app). Production installed movie inspected after replacement:
+1920×1080, 180 seconds, one video track, no audio, full background and no scene clock.
+User switched to built-in display only; synchronization source now follows its
+3799672625 scene. Native settings verified Automatic screen saver and large clock Never.
+Actual post-change lock/unlock motion remains for the user's manual observation.
+
+Lock-screen crop regression: scene recording receives the selected display's aspect ratio.
+After every scene update, it remaps audio overlays into the centered aspect-fill viewport
+using the same layout function as desktop playback. The cache key includes the aspect;
+display configuration changes trigger synchronization. The scene recorder smoke test now
+uses 1512×982 to exercise the built-in display crop instead of a 16:9 viewport.
+
+Automatic-display/cache tests simulate main-display replacement and disconnection, verify
+source name/movie changes after the debounce, verify returning to a display avoids another
+encode, and corrupt the encoded cache to confirm regeneration. The real recorder test also
+requests 1512×982 then 3024×1964 and requires the same cached movie URL.
+
+鎖定同步測試亦涵蓋下載完成通知只預備快取、不更換系統影片，以及選用已預備影片時跳過轉檔。
+
+背景錄製測試使用未快取比例，錄製時每 20ms 檢查主執行緒回應（最大間隔須小於 500ms），並驗證錄製途中取消、同等比例快取重用與輸出影格有動畫。
+
+執行 `bash tests/run-desktop-load.sh <場景目錄>` 驗證背景場景載入、保留原桌布、過期工作取消、載入失敗、影片 readyToPlay 交接與主執行緒回應；測試場景使用 3799672625（含背景影片音訊）。
+
+## Workshop presets
+
+```sh
+bash tests/run-preset-resolver.sh
+bash tests/run-preset-playback.sh '/path/to/3169242171' '/path/to/3122339805'
+```
+
+The resolver suite covers nested dependencies, numeric/string IDs, missing dependencies,
+fetch callbacks, false/zero/null overrides, asset precedence, cycles and invalid IDs.
+The playback suite copies both fixtures to a temporary library, preserves the source
+metadata, loads all 190 scene objects, checks the three custom GIF bindings advance,
+and renders `/tmp/we-miku-preset.png`. Requires the macOS graphics service.
+
+Preset content is materialized in `.preset-runtime` inside the selected item's folder.
+The original project.json and parent wallpaper remain unchanged; property/volume
+persistence stays keyed to the selected preset. SteamCMD retrieves missing parents
+using the existing Steam login. Failed dependency resolution retains the previous desktop.
+
 ### TEX container compatibility
 
 `bash tests/run-tex-video-containers.sh` checks TEXB0001–0004 through the shared
@@ -576,3 +674,76 @@ bash tests/run-tex-video-containers.sh "$HOME/Documents/Open Wallpaper Engine"
 Real-media checks require macOS media services outside a restricted sandbox. The
 local audit covered 72 TEX files and decoded all 8 video textures (four V3, four V4).
 The existing scene compatibility suite covers multi-atlas/mipmap TEXS0001–0003.
+
+### Preset media events and desktop framing
+
+The preset playback test also exercises the authored media handlers with playing,
+paused, stopped, disabled and changed-track states, verifies separate title/artist
+fields, and checks that fill maps all scene corners exactly to the edges of a viewport below
+the actual screen's menu bar. For a live player with artwork:
+
+```sh
+bash tests/run-preset-playback.sh '/path/to/3169242171' '/path/to/3122339805' --live-media
+```
+
+The live test bundles the installed MediaRemote bridge in a temporary test app;
+it reads the current player without sending playback commands, verifies the scene
+text against real metadata, and renders `/tmp/we-miku-media.png`. Desktop Scene
+views now map the whole canvas to the desktop below the menu bar without margins;
+width and height scale independently to avoid cropping. Media events follow the existing album-art opt-in setting.
+
+## Workshop performance checks
+
+```sh
+python3 tests/run-workshop-preview.py
+bash tests/run-workshop-import.sh
+bash tests/run-steam-download.sh
+```
+
+Preview checks use a loopback HTTP fixture to verify request coalescing, memory
+cache reuse, cancellation isolation, the four-transfer limit, static downsampling,
+and actual GIF frame advancement/pause. GIF image objects remain independent
+between cards and sheets. Import checks use a temporary library and verify copy
+integrity, preservation of existing items, and staging cleanup on failure.
+
+In macOS Console, filter the app's messages for `WorkshopPerformance`, or run:
+
+```sh
+log stream --style compact --predicate 'eventMessage CONTAINS "[WorkshopPerformance]"'
+```
+
+App-side timings use a monotonic clock and seconds. `search` includes the API
+request and parsing. `preview.queue` measures scheduling delay, `preview.fetch`
+measures a network attempt (including failed/cancelled attempts), and
+`preview.decode` measures image preparation. `preview.memory_hit` and
+`preview.disk_hit` distinguish cache reuse. `preview.cancelled queued=1` means a
+request with no remaining consumers was removed before it began. Cards only
+request images while intersecting the scroll viewport; the open sheet takes
+priority over queued cards. GIF byte data is reused but animation objects remain
+independent, and offscreen animations pause.
+
+Preview bytes are retained for 30 minutes from download time in a dedicated
+`~/Library/Caches/com.winddog.wallpaper-engine/WorkshopPreviews-v2/` cache.
+Memory uses a 64 MiB LRU budget, disk uses a 512 MiB oldest-entry eviction budget.
+Capacity limits can evict images before 30 minutes. Disk reuse is independent of
+server HTTP cache headers, survives view destruction/app restarts, and never
+stores more than 16 MiB per image. Expired entries refresh on access and are
+pruned on writes. This directory is separate from installed wallpapers.
+
+SteamCMD jobs (including login, Workshop dependencies, and engine downloads)
+share one in-process FIFO worker. Workshop imports complete before releasing the
+worker; dependency resolution runs afterwards so nested downloads cannot deadlock.
+Other applications/independent SteamCMD processes are outside this queue.
+
+Downloads report `queue`, `steamcmd.total`, `import`, and `dependencies` (with
+`.failed` for import/dependency errors). Buffered stdout no longer produces
+phase durations. Newly appended native Steam logs, correlated by Workshop ID and
+manifest, supply `native.startup_and_login`, `native.job`,
+`native.request_to_transfer`, `native.transfer_and_staging`, and
+`native.commit_and_validation`. These wall-clock timestamps have **one-second
+resolution**; transfer/staging includes local writes and is not pure network time.
+`native.job` overlaps the detailed stages and must not be added to them.
+Rotated/missing/ambiguous logs omit unavailable phases rather than inventing them;
+`native.timing=unavailable` indicates no complete matching native job was found.
+`native.result` distinguishes success and failure. No raw SteamCMD output, URLs,
+account names, cookies, or API keys are written to these performance messages.

@@ -14,6 +14,28 @@ final class SceneScriptRuntime {
     private let objects: [[String: Any]]
     private var properties: [String: Any]
     private var stopped = false
+    private struct MediaState: Equatable { let title: String; let artist: String; let playing: Bool; let enabled: Bool }
+    private var lastMedia: MediaState?
+
+    func applyMedia(title: String, artist: String, playing: Bool, enabled: Bool) {
+        guard !stopped else { return }
+        let next = MediaState(title: enabled ? title : "", artist: enabled ? artist : "", playing: enabled && playing, enabled: enabled)
+        guard next != lastMedia else { return }
+        func send(_ name: String, _ event: [String: Any]) {
+            context.objectForKeyedSubscript("dispatchMedia")?.call(withArguments: [name, event])
+        }
+        if next.enabled != lastMedia?.enabled { send("mediaStatusChanged", ["enabled": next.enabled]) }
+        if next.title != lastMedia?.title || next.artist != lastMedia?.artist {
+            send("mediaPropertiesChanged", ["title": next.title, "artist": next.artist, "albumTitle": "", "albumArtist": "", "subTitle": "", "genres": "", "contentType": "music"])
+        }
+        func state(_ value: MediaState) -> Int { value.title.isEmpty && value.artist.isEmpty ? 0 : value.playing ? 1 : 2 }
+        if lastMedia == nil || state(next) != lastMedia.map(state) {
+            send("mediaPlaybackChanged", ["state": state(next)])
+        }
+        lastMedia = next
+        synchronizeNodes()
+    }
+
     private var allowShortcut = false
     private var hovered: Int?
     private var pressed: Int?
@@ -269,12 +291,16 @@ final class SceneTextNode: SKLabelNode {
     private let vertical: String
     private let textFont: NSFont
     private let textColor: NSColor
+    private let maxRows: Int
+    private let maxWidth: CGFloat?
+    private let ellipsis: Bool
 
     init(text: String, font: NSFont, color: NSColor, size: CGSize, padding: CGSize,
-         horizontal: String, vertical: String) {
+         horizontal: String, vertical: String, maxWidth: CGFloat? = nil, maxRows: Int = 0, ellipsis: Bool = false) {
         self.layoutSize = size; self.padding = padding
         self.horizontal = horizontal; self.vertical = vertical
         self.textFont = font; self.textColor = color
+        self.maxWidth = maxWidth; self.maxRows = maxRows; self.ellipsis = ellipsis
         super.init()
         horizontalAlignmentMode = horizontal == "right" ? .right : horizontal == "left" ? .left : .center
         verticalAlignmentMode = .baseline
@@ -284,7 +310,13 @@ final class SceneTextNode: SKLabelNode {
 
     func updateText(_ text: String) {
         guard attributedText?.string != text else { return }
-        let attributed = NSAttributedString(string: text, attributes: [.font: textFont, .foregroundColor: textColor])
+        let multiline = text.contains("\n")
+        numberOfLines = maxRows > 0 ? maxRows : multiline ? 0 : 1
+        preferredMaxLayoutWidth = maxWidth ?? 0
+        verticalAlignmentMode = multiline ? (vertical == "top" ? .top : vertical == "bottom" ? .bottom : .center) : .baseline
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = ellipsis ? .byTruncatingTail : .byWordWrapping
+        let attributed = NSAttributedString(string: text, attributes: [.font: textFont, .foregroundColor: textColor, .paragraphStyle: paragraph])
         attributedText = attributed
         let width = attributed.size().width
         let lineHeight = textFont.ascender - textFont.descender
@@ -301,6 +333,6 @@ final class SceneTextNode: SKLabelNode {
             : vertical == "bottom" ? -textFont.descender
             : -textFont.ascender/2
         layoutBounds = CGRect(x: boxX, y: vertical == "top" ? -h : vertical == "bottom" ? 0 : -h/2, width: w, height: h)
-        position = CGPoint(x: x, y: y)
+        position = CGPoint(x: x, y: multiline ? 0 : y)
     }
 }

@@ -46,8 +46,17 @@ class VideoWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
             if let oldItem = self.player.currentItem {
                 NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: oldItem)
             }
-            let newItem = AVPlayerItem(url: currentWallpaper.wallpaperDirectory.appending(path: currentWallpaper.project.file))
-            self.player.replaceCurrentItem(with: newItem)
+            let newItem: AVPlayerItem
+            if let prepared = AppDelegate.shared.wallpaperViewModel.takePreparedVideoPlayer(for: screenId),
+               let item = prepared.currentItem {
+                player.pause()
+                player = prepared
+                player.isMuted = false
+                newItem = item
+            } else {
+                newItem = AVPlayerItem(url: SceneAssetResolver.contentRoot(currentWallpaper.wallpaperDirectory).appending(path: currentWallpaper.project.file))
+                self.player.replaceCurrentItem(with: newItem)
+            }
             NotificationCenter.default.addObserver(self, selector: #selector(playerDidFinishPlaying(_:)), name: .AVPlayerItemDidPlayToEndTime, object: newItem)
             // Force-apply rate and volume — replaceCurrentItem resets player to paused
             self.player.rate = effectiveRate
@@ -72,10 +81,11 @@ class VideoWallpaperViewModel: ObservableObject, WallpaperPlaybackSession {
     private var cancellables = Set<AnyCancellable>()
     private var volumeSubscription: AnyCancellable?
 
-    init(wallpaper currentWallpaper: WEWallpaper, screenId: String = UUID().uuidString) {
+    init(wallpaper currentWallpaper: WEWallpaper, screenId: String = UUID().uuidString, preparedPlayer: AVPlayer? = nil) {
         self.screenId = screenId
         self.currentWallpaper = currentWallpaper
-        self.player = AVPlayer(url: currentWallpaper.wallpaperDirectory.appending(path: currentWallpaper.project.file))
+        self.player = preparedPlayer ?? AVPlayer(url: SceneAssetResolver.contentRoot(currentWallpaper.wallpaperDirectory).appending(path: currentWallpaper.project.file))
+        self.player.isMuted = false
         NotificationCenter.default.addObserver(self, selector: #selector(playerDidFinishPlaying(_:)), name: .AVPlayerItemDidPlayToEndTime, object: self.player.currentItem)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(systemWillSleep(_:)), name: NSWorkspace.screensDidSleepNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(systemDidWake(_:)), name: NSWorkspace.didWakeNotification, object: nil)

@@ -30,6 +30,7 @@ final class ExternalMediaService: ObservableObject {
     @Published private(set) var artworkStatus = String(localized: "Album artwork is off")
     @Published private(set) var audioStatus = String(localized: "External audio is off")
     @Published private(set) var trackTitle = ""
+    private(set) var nowPlaying = NowPlayingSnapshot(title: "", artist: "", playing: false, artwork: nil)
     private(set) var artworkTexture: SKTexture?
     private(set) var artworkRevision = 0
     private let defaults: UserDefaults
@@ -48,6 +49,7 @@ final class ExternalMediaService: ObservableObject {
         systemAudioEnabled = defaults.bool(forKey: "ExternalMedia.audio")
         bridge.received = { [weak self] snapshot, image in
             guard let self else { return }
+            self.nowPlaying = snapshot
             self.trackTitle = [snapshot.title, snapshot.artist].filter { !$0.isEmpty }.joined(separator: " — ")
             if snapshot.artwork != self.artworkData {
                 self.artworkData = snapshot.artwork
@@ -100,6 +102,7 @@ final class ExternalMediaService: ObservableObject {
 
     private func clearArtwork() {
         artworkData = nil; artworkTexture = nil; artworkRevision += 1; trackTitle = ""
+        nowPlaying = NowPlayingSnapshot(title: "", artist: "", playing: false, artwork: nil)
     }
 
     private func reconcile() {

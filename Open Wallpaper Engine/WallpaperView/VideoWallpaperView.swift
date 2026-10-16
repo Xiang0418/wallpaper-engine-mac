@@ -17,7 +17,7 @@ struct VideoWallpaperView: NSViewRepresentable {
     init(wallpaperViewModel: WallpaperViewModel, screenId: String) {
         self.wallpaperViewModel = wallpaperViewModel
         self.screenId = screenId
-        self._viewModel = StateObject(wrappedValue: VideoWallpaperViewModel(wallpaper: wallpaperViewModel.wallpaper(for: screenId), screenId: screenId))
+        self._viewModel = StateObject(wrappedValue: VideoWallpaperViewModel(wallpaper: wallpaperViewModel.wallpaper(for: screenId), screenId: screenId, preparedPlayer: wallpaperViewModel.takePreparedVideoPlayer(for: screenId)))
     }
 
     class Coordinator {
@@ -58,6 +58,7 @@ struct VideoWallpaperView: NSViewRepresentable {
             viewModel.currentWallpaper = selectedWallpaper
         }
 
+        if nsView.player !== viewModel.player { nsView.player = viewModel.player }
         viewModel.playRate = wallpaperViewModel.playRate
         viewModel.playVolume = wallpaperViewModel.effectiveVolume(for: selectedWallpaper)
     }

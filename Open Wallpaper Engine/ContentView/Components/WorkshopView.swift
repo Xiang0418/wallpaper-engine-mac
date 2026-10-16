@@ -1,5 +1,6 @@
 import SwiftUI
 import ImageIO
+import CryptoKit
 import WebKit
 
 struct WorkshopView: SubviewOfContentView {
@@ -438,22 +439,25 @@ private struct WorkshopBrowserView: View {
                 }
                 Spacer()
             } else {
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 200, maximum: 300))], spacing: 12) {
-                        ForEach(viewModel.items) { item in
-                            WorkshopItemCard(item: item, viewModel: viewModel)
+                GeometryReader { viewport in
+                    ScrollView {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 200, maximum: 300))], spacing: 12) {
+                            ForEach(viewModel.items) { item in
+                                WorkshopItemCard(item: item, viewModel: viewModel)
+                            }
                         }
-                    }
-                    .padding()
+                        .padding()
 
-                    if viewModel.hasMore {
-                        Button("Load More") {
-                            Task { await viewModel.loadMore() }
+                        if viewModel.hasMore {
+                            Button("Load More") {
+                                Task { await viewModel.loadMore() }
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(viewModel.isLoading)
+                            .padding(.bottom)
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(viewModel.isLoading)
-                        .padding(.bottom)
                     }
+                    .environment(\.workshopViewport, viewport.frame(in: .global))
                 }
             }
         }
@@ -820,9 +824,10 @@ private struct WorkshopImagePreview: View {
         image = nil; failed = false; animated = false; playing = false
         do {
             guard let url = item.previewImageURL else { throw URLError(.badURL) }
-            let data = try await WorkshopPreviewLoader.fetch(url)
+            let data = try await WorkshopPreviewLoader.fetch(url, priority: .detail)
             try Task.checkCancellation()
-            let (decoded, isAnimated) = try WorkshopPreviewLoader.decode(data)
+            let (decoded, isAnimated) = try await WorkshopPreviewLoader.decode(data)
+            try Task.checkCancellation()
             animated = isAnimated
             image = decoded; playing = animated && !reduceMotion
         } catch {
@@ -832,38 +837,241 @@ private struct WorkshopImagePreview: View {
 }
 
 private enum WorkshopPreviewLoader {
-    @MainActor static func decode(_ data: Data) throws -> (NSImage, Bool) {
+    // Decode off the UI thread. Animated images are intentionally not shared:
+    // NSBitmapImageRep stores a mutable current frame, so sharing breaks pause.
+    static func decode(_ data: Data, maxPixelSize: Int? = nil) async throws -> (NSImage, Bool) {
+        try await Task.detached(priority: .userInitiated) {
+            let started = ProcessInfo.processInfo.systemUptime
+            defer { NSLog("[WorkshopPerformance] preview.decode seconds=%.3f", ProcessInfo.processInfo.systemUptime - started) }
             guard let source = CGImageSourceCreateWithData(data as CFData, nil),
                   let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
                   let width = properties[kCGImagePropertyPixelWidth] as? Int,
                   let height = properties[kCGImagePropertyPixelHeight] as? Int,
                   width > 0, height > 0, width <= 8192, height <= 8192 else { throw URLError(.cannotDecodeContentData) }
             let frames = CGImageSourceGetCount(source)
-            guard frames > 0, frames <= 500, Double(width)*Double(height)*Double(frames)*4 <= 128*1024*1024,
-                  let decoded = NSImage(data: data) else { throw URLError(.dataLengthExceedsMaximum) }
-            // NSImageView supplies GIF timing/disposal; do not replace its image on pause.
-            let gif = CGImageSourceGetType(source) as String? == "com.compuserve.gif"
-            let animated = gif && frames > 1
+            guard frames > 0, frames <= 500, Double(width)*Double(height)*Double(frames)*4 <= 128*1024*1024
+                else { throw URLError(.dataLengthExceedsMaximum) }
+            let animated = CGImageSourceGetType(source) as String? == "com.compuserve.gif" && frames > 1
+            if !animated, let maxPixelSize {
+                let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+                    kCGImageSourceCreateThumbnailWithTransform: true, kCGImageSourceShouldCacheImmediately: true]
+                guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+                    else { throw URLError(.cannotDecodeContentData) }
+                return (NSImage(cgImage: thumbnail, size: .zero), false)
+            }
+            guard let decoded = NSImage(data: data) else { throw URLError(.cannotDecodeContentData) }
             if animated {
                 (decoded.representations.first as? NSBitmapImageRep)?.setProperty(.loopCount, withValue: 0)
             }
-        return (decoded, animated)
+            return (decoded, animated)
+        }.value
     }
 
-    static func fetch(_ url: URL) async throws -> Data {
-        guard ["https", "http"].contains(url.scheme?.lowercased() ?? "") else { throw URLError(.unsupportedURL) }
-        let limit = 16 * 1024 * 1024
-        let request = URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 30)
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
-        guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode),
-              response.expectedContentLength <= limit else { throw URLError(.badServerResponse) }
-        var data = Data(); data.reserveCapacity(256 * 1024)
-        for try await byte in bytes {
-            if data.count % 16384 == 0 { try Task.checkCancellation() }
-            guard data.count < limit else { throw URLError(.dataLengthExceedsMaximum) }
-            data.append(byte)
-        }
+    static func fetch(_ url: URL, priority: WorkshopPreviewPriority = .visible) async throws -> Data {
+        try Task.checkCancellation()
+        let data = try await WorkshopPreviewDataStore.shared.fetch(url, priority: priority)
+        try Task.checkCancellation()
         return data
+    }
+}
+
+private enum WorkshopPreviewPriority: Int { case visible, detail }
+
+/// Consumer-owned requests: offscreen views release their interest without
+/// cancelling another card or sheet. Only live consumers occupy queue slots.
+private actor WorkshopPreviewDataStore {
+    static let shared = WorkshopPreviewDataStore()
+    private struct MemoryEntry { let data: Data; let stored: Date; var accessed: UInt64 }
+    private struct Consumer {
+        let priority: WorkshopPreviewPriority
+        let continuation: CheckedContinuation<Data, Error>
+    }
+    private final class Request {
+        let token = UUID()
+        let order: UInt64
+        let queued = ProcessInfo.processInfo.systemUptime
+        var consumers: [UUID: Consumer] = [:]
+        var task: Task<Void, Never>?
+        init(order: UInt64) { self.order = order }
+        var priority: Int { consumers.values.map { $0.priority.rawValue }.max() ?? 0 }
+    }
+    private var memory: [URL: MemoryEntry] = [:]
+    private var memoryBytes = 0
+    private var requests: [URL: Request] = [:]
+    private var running = 0
+    private var sequence: UInt64 = 0
+    private let session: URLSession
+    private let directory: URL
+    private let memoryLimit: Int
+    private let diskLimit: Int
+    private let lifetime: TimeInterval
+    private let concurrency: Int
+    private let byteLimit = 16 * 1024 * 1024
+
+    init(directory: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("com.winddog.wallpaper-engine/WorkshopPreviews-v2"),
+         memoryLimit: Int = 64 * 1024 * 1024, diskLimit: Int = 512 * 1024 * 1024,
+         lifetime: TimeInterval = 30 * 60, concurrency: Int = 4) {
+        self.directory = directory; self.memoryLimit = memoryLimit
+        self.diskLimit = diskLimit; self.lifetime = lifetime; self.concurrency = max(1, concurrency)
+        let configuration = URLSessionConfiguration.ephemeral
+        // Explicit byte cache below also retains images whose HTTP headers prevent URLCache reuse.
+        configuration.urlCache = nil
+        configuration.timeoutIntervalForResource = 45
+        configuration.httpMaximumConnectionsPerHost = max(1, concurrency)
+        session = URLSession(configuration: configuration)
+    }
+
+    func fetch(_ url: URL, priority: WorkshopPreviewPriority = .visible) async throws -> Data {
+        guard ["https", "http"].contains(url.scheme?.lowercased() ?? "") else { throw URLError(.unsupportedURL) }
+        let consumer = UUID()
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                sequence &+= 1
+                if var entry = memory[url], Date().timeIntervalSince(entry.stored) < lifetime {
+                    entry.accessed = sequence; memory[url] = entry
+                    NSLog("[WorkshopPerformance] preview.memory_hit bytes=%d", entry.data.count)
+                    continuation.resume(returning: entry.data)
+                    return
+                }
+                // Cached images bypass the network queue, even if all transfers are busy.
+                if let data = diskData(for: url) {
+                    continuation.resume(returning: data)
+                    return
+                }
+                let request = requests[url] ?? Request(order: sequence)
+                request.consumers[consumer] = Consumer(priority: priority, continuation: continuation)
+                requests[url] = request
+                schedule()
+            }
+        } onCancel: {
+            Task { await self.cancel(url, consumer: consumer) }
+        }
+    }
+
+    private func cancel(_ url: URL, consumer: UUID) {
+        guard let request = requests[url], let removed = request.consumers.removeValue(forKey: consumer) else { return }
+        removed.continuation.resume(throwing: CancellationError())
+        if request.consumers.isEmpty {
+            requests[url] = nil
+            request.task?.cancel()
+            NSLog("[WorkshopPerformance] preview.cancelled queued=%d", request.task == nil ? 1 : 0)
+        }
+        schedule()
+    }
+
+    private func schedule() {
+        while running < concurrency {
+            guard let (url, request) = requests.filter({ $0.value.task == nil }).sorted(by: {
+                $0.value.priority == $1.value.priority ? $0.value.order < $1.value.order : $0.value.priority > $1.value.priority
+            }).first else { return }
+            running += 1
+            request.task = Task {
+                let result: Result<Data, Error>
+                do { result = .success(try await load(url, queued: request.queued)) }
+                catch { result = .failure(error) }
+                finish(url, token: request.token, result: result)
+            }
+        }
+    }
+
+    private func finish(_ url: URL, token: UUID, result: Result<Data, Error>) {
+        running -= 1
+        // A cancelled request may finish after a new request for the same URL.
+        if let request = requests[url], request.token == token {
+            requests[url] = nil
+            for consumer in request.consumers.values { consumer.continuation.resume(with: result) }
+        }
+        schedule()
+    }
+
+    private func cachePath(_ url: URL) -> URL {
+        let name = SHA256.hash(data: Data(url.absoluteString.utf8)).map { String(format: "%02x", $0) }.joined()
+        return directory.appendingPathComponent(name + ".preview")
+    }
+
+    private func remember(_ data: Data, url: URL, stored: Date) {
+        if let previous = memory.removeValue(forKey: url) { memoryBytes -= previous.data.count }
+        sequence &+= 1
+        memory[url] = MemoryEntry(data: data, stored: stored, accessed: sequence)
+        memoryBytes += data.count
+        while memoryBytes > memoryLimit, let oldest = memory.min(by: { $0.value.accessed < $1.value.accessed }) {
+            memoryBytes -= oldest.value.data.count; memory[oldest.key] = nil
+        }
+    }
+
+    private func pruneDisk() {
+        let fm = FileManager.default
+        let keys: Set<URLResourceKey> = [.fileSizeKey, .contentModificationDateKey, .isRegularFileKey]
+        guard let files = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: Array(keys)) else { return }
+        var retained: [(URL, Int, Date)] = []
+        for file in files where file.pathExtension == "preview" {
+            guard let values = try? file.resourceValues(forKeys: keys), values.isRegularFile == true,
+                  let size = values.fileSize, let date = values.contentModificationDate else { continue }
+            if Date().timeIntervalSince(date) >= lifetime || size > byteLimit {
+                try? fm.removeItem(at: file)
+            } else { retained.append((file, size, date)) }
+        }
+        var total = retained.reduce(0) { $0 + $1.1 }
+        for (file, size, _) in retained.sorted(by: { $0.2 < $1.2 }) where total > diskLimit {
+            try? fm.removeItem(at: file); total -= size
+        }
+    }
+
+    private func diskData(for url: URL) -> Data? {
+        let path = cachePath(url)
+        if let values = try? path.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]),
+           let size = values.fileSize, size <= byteLimit,
+           let stored = values.contentModificationDate, Date().timeIntervalSince(stored) < lifetime,
+           let data = try? Data(contentsOf: path), CGImageSourceCreateWithData(data as CFData, nil) != nil {
+            remember(data, url: url, stored: stored)
+            NSLog("[WorkshopPerformance] preview.disk_hit bytes=%d", data.count)
+            return data
+        }
+        return nil
+    }
+
+    private func load(_ url: URL, queued: TimeInterval) async throws -> Data {
+        try Task.checkCancellation()
+        NSLog("[WorkshopPerformance] preview.queue seconds=%.3f", ProcessInfo.processInfo.systemUptime - queued)
+        let path = cachePath(url)
+        let started = ProcessInfo.processInfo.systemUptime
+        defer { NSLog("[WorkshopPerformance] preview.fetch seconds=%.3f", ProcessInfo.processInfo.systemUptime - started) }
+        let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
+        let (bytes, response) = try await session.bytes(for: request)
+        defer { bytes.task.cancel() }
+        return try await withTaskCancellationHandler {
+            guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode),
+                  response.expectedContentLength <= byteLimit else { throw URLError(.badServerResponse) }
+            var data = Data(); data.reserveCapacity(256 * 1024)
+            var chunk = [UInt8](); chunk.reserveCapacity(16384)
+            for try await byte in bytes {
+                guard data.count + chunk.count < byteLimit else { throw URLError(.dataLengthExceedsMaximum) }
+                chunk.append(byte)
+                if chunk.count == 16384 {
+                    try Task.checkCancellation()
+                    data.append(contentsOf: chunk); chunk.removeAll(keepingCapacity: true)
+                }
+            }
+            data.append(contentsOf: chunk)
+            try Task.checkCancellation()
+            guard CGImageSourceCreateWithData(data as CFData, nil) != nil else { throw URLError(.cannotDecodeContentData) }
+            remember(data, url: url, stored: Date())
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try? data.write(to: path, options: .atomic)
+            pruneDisk()
+            return data
+        } onCancel: { bytes.task.cancel() }
+    }
+}
+
+private struct WorkshopViewportKey: EnvironmentKey { static let defaultValue: CGRect? = nil }
+private extension EnvironmentValues {
+    var workshopViewport: CGRect? {
+        get { self[WorkshopViewportKey.self] }
+        set { self[WorkshopViewportKey.self] = newValue }
     }
 }
 
@@ -889,6 +1097,10 @@ private struct WorkshopPreviewImage: NSViewRepresentable {
 
 private struct WorkshopAnimatedThumbnail: View {
     let url: URL?
+    @Environment(\.workshopViewport) private var viewport
+    @State private var frame = CGRect.zero
+    @State private var loadedURL: URL?
+    private struct LoadKey: Hashable { let url: URL?; let visible: Bool }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var image: NSImage?
     @State private var animated = false
@@ -905,17 +1117,34 @@ private struct WorkshopAnimatedThumbnail: View {
                 ProgressView().controlSize(.small)
             }
         }
-        .onAppear { visible = true }
-        .onDisappear { visible = false }
-        .task(id: url) {
+        .background(GeometryReader { geometry in
+            Color.clear
+                .onAppear { updateVisibility(geometry.frame(in: .global), viewport: viewport) }
+                .onChange(of: geometry.frame(in: .global)) { updateVisibility($0, viewport: viewport) }
+        })
+        .onChange(of: viewport) { newViewport in updateVisibility(frame, viewport: newViewport) }
+        .onDisappear { visible = false; releaseImage() }
+        .task(id: LoadKey(url: url, visible: visible)) {
+            guard visible else { return }
+            if loadedURL == url, image != nil { return }
             image = nil; failed = false; animated = false
             guard let url else { failed = true; return }
             do {
                 let data = try await WorkshopPreviewLoader.fetch(url)
                 try Task.checkCancellation()
-                let decoded = try WorkshopPreviewLoader.decode(data)
-                image = decoded.0; animated = decoded.1
+                let decoded = try await WorkshopPreviewLoader.decode(data, maxPixelSize: 600)
+                try Task.checkCancellation()
+                image = decoded.0; animated = decoded.1; loadedURL = url
             } catch { if !Task.isCancelled { failed = true } }
         }
+    }
+    private func updateVisibility(_ rect: CGRect, viewport: CGRect?) {
+        frame = rect
+        visible = !rect.isEmpty && (viewport.map { $0.intersects(rect) } ?? true)
+        if !visible { releaseImage() }
+    }
+    private func releaseImage() {
+        // Retain compressed bytes in the bounded cache, not unlimited decoded GIF frames.
+        image = nil; animated = false; loadedURL = nil
     }
 }

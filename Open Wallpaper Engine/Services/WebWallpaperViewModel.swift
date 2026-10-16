@@ -12,11 +12,11 @@ class WebWallpaperViewModel: NSObject, ObservableObject, WKNavigationDelegate {
     var currentWallpaper: WEWallpaper
     
     var fileUrl: URL {
-        currentWallpaper.wallpaperDirectory.appending(path: currentWallpaper.project.file)
+        SceneAssetResolver.contentRoot(currentWallpaper.wallpaperDirectory).appending(path: currentWallpaper.project.file)
     }
     
     var readAccessURL: URL {
-        currentWallpaper.wallpaperDirectory
+        SceneAssetResolver.contentRoot(currentWallpaper.wallpaperDirectory)
     }
     
     init(wallpaper: WEWallpaper) {
@@ -38,6 +38,11 @@ class WebWallpaperViewModel: NSObject, ObservableObject, WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         let javascriptStyle = "var css = '*{-webkit-touch-callout:none;-webkit-user-select:none}'; var head = document.head || document.getElementsByTagName('head')[0]; var style = document.createElement('style'); style.type = 'text/css'; style.appendChild(document.createTextNode(css)); head.appendChild(style);"
         webView.evaluateJavaScript(javascriptStyle, completionHandler: nil)
+        let properties = ScenePropertyStore.shared.values(at: currentWallpaper.wallpaperDirectory).mapValues { ["value": $0] }
+        if let data = try? JSONSerialization.data(withJSONObject: properties, options: [.fragmentsAllowed]),
+           let json = String(data: data, encoding: .utf8) {
+            webView.evaluateJavaScript("window.wallpaperPropertyListener?.applyUserProperties?.(" + json + ");", completionHandler: nil)
+        }
         
         if AppDelegate.shared.globalSettingsViewModel.settings.adjustMenuBarTint {
             webView.takeSnapshot(with: nil) { [weak self] nsImage, error in

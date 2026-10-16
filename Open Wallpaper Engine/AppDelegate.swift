@@ -68,12 +68,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
 // MARK: - delegate methods
     func applicationDidFinishLaunching(_ notification: Notification) {
+        WEPresetResolver.downloadDependency = { id, destination in
+            try await SteamCmdService.downloadPresetDependency(id, to: destination)
+        }
+        SteamCmdService.resolveDownloadedItem = { directory in
+            let project = try JSONDecoder().decode(WEProject.self, from: Data(contentsOf: directory.appendingPathComponent("project.json")))
+            _ = try await WEPresetResolver.prepare(WEWallpaper(using: project, where: directory))
+        }
         // Start cached Steam authentication before the first Workshop visit.
         // The shared service runs SteamCMD on a background queue.
         Task { @MainActor in
             _ = self.contentViewModel.steamCmd
         }
 
+        LockScreenSyncService.shared.start(model: wallpaperViewModel)
         saveCurrentWallpaper()
         AppDelegate.shared.setPlacehoderWallpaper(with: wallpaperViewModel.currentWallpaper)
 
@@ -84,7 +92,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         
         if globalSettingsViewModel.isFirstLaunch {
             self.mainWindowController.window.center()
-            self.mainWindowController.window.makeKeyAndOrderFront(nil)
+            openMainWindow()
         }
     }
     
@@ -94,13 +102,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !self.mainWindowController.window.isVisible && !settingsWindow.isVisible {
-            self.mainWindowController.window?.makeKeyAndOrderFront(nil)
+            openMainWindow()
         }
         
         return true
     }
     
     func applicationWillTerminate(_ notification: Notification) {
+        LockScreenSyncService.shared.shutdown()
         ExternalMediaService.shared.shutdown()
         for id in wallpaperWindows.keys { WallpaperPlaybackSessions.shared.stop(screenId: id) }
         if let eventHandler { NSEvent.removeMonitor(eventHandler) }
@@ -127,12 +136,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
 // MARK: - misc methods
     @objc func openSettingsWindow() {
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         self.settingsWindow.center()
         self.settingsWindow.makeKeyAndOrderFront(nil)
     }
     
     @objc func openMainWindow() {
+        NSApp.setActivationPolicy(.regular)
         self.mainWindowController.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -232,6 +243,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         globalSettingsViewModel.reset()
+        hideDockIconIfLastWindowCloses(notification.object as? NSWindow)
+    }
+
+    func hideDockIconIfLastWindowCloses(_ closingWindow: NSWindow?) {
+        // willClose arrives before isVisible changes. Wallpaper windows do not
+        // count, while minimized control windows should retain their Dock entry.
+        let controlWindows = [mainWindowController?.window, settingsWindow].compactMap { $0 }
+        let hasOpenWindow = controlWindows.contains {
+            $0 !== closingWindow && ($0.isVisible || $0.isMiniaturized)
+        }
+        if !hasOpenWindow {
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
     
     func setEventHandler() {
@@ -283,6 +307,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func restoreDesktopImages() {
+        guard !LockScreenSyncService.shared.suspendsDesktopOverrides else { return }
         let saved = UserDefaults.standard.dictionary(forKey: "OSWallpapersByDisplay") as? [String: String] ?? [:]
         for screen in NSScreen.screens {
             let url = saved[WallpaperViewModel.screenId(for: screen)].flatMap(URL.init(string:))
@@ -292,7 +317,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func setPlacehoderWallpaper(with wallpaper: WEWallpaper) {
-        guard globalSettingsViewModel.settings.adjustMenuBarTint else { return }
+        guard !LockScreenSyncService.shared.suspendsDesktopOverrides, globalSettingsViewModel.settings.adjustMenuBarTint else { return }
         switch wallpaper.project.type {
         case "video":
             let asset = AVAsset(url: wallpaper.wallpaperDirectory.appending(component: wallpaper.project.file))
@@ -310,7 +335,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                             let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appending(path: "staticWP_\(wallpaper.wallpaperDirectory.hashValue).tiff")
                             try data.write(to: url, options: .atomic)
                             DispatchQueue.main.async { [weak self] in
-                                guard let self, self.globalSettingsViewModel.settings.adjustMenuBarTint else { return }
+                                guard let self, !LockScreenSyncService.shared.suspendsDesktopOverrides, self.globalSettingsViewModel.settings.adjustMenuBarTint else { return }
                                 for screen in NSScreen.screens {
                                     let id = WallpaperViewModel.screenId(for: screen)
                                     guard self.wallpaperViewModel.isScreenEnabled(id),

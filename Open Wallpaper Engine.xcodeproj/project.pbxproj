@@ -82,6 +82,11 @@
 		EE60000000000000000000021 /* EngineAssetsSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE60000000000000000000022; };
 		CD5200000000000000000001 /* SceneParsers/MDLParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5100000000000000000001; };
 		CD5200000000000000000002 /* SceneRuntime/ScenePuppetNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5100000000000000000002; };
+		FA1300000000000000000000 /* LockScreenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1200000000000000000000; };
+		FA1300000000000000000001 /* LockScreenVideoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1200000000000000000001; };
+		FA1300000000000000000002 /* LockScreenSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1200000000000000000002; };
+		FA1300000000000000000003 /* LockScreenSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1200000000000000000003; };
+		FA1300000000000000000004 = {isa = PBXBuildFile; fileRef = FA1200000000000000000004; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -173,6 +178,11 @@
 		EE60000000000000000000022 /* EngineAssetsSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EngineAssetsSettingsSection.swift"; sourceTree = "<group>"; };
 		CD5100000000000000000001 /* SceneParsers/MDLParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneParsers/MDLParser.swift; sourceTree = "<group>"; };
 		CD5100000000000000000002 /* SceneRuntime/ScenePuppetNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneRuntime/ScenePuppetNode.swift; sourceTree = "<group>"; };
+		FA1200000000000000000000 /* LockScreenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LockScreen/LockScreenStore.swift"; sourceTree = "<group>"; };
+		FA1200000000000000000001 /* LockScreenVideoEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LockScreen/LockScreenVideoEncoder.swift"; sourceTree = "<group>"; };
+		FA1200000000000000000002 /* LockScreenSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LockScreen/LockScreenSyncService.swift"; sourceTree = "<group>"; };
+		FA1200000000000000000003 /* LockScreenSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LockScreenSettingsSection.swift"; sourceTree = "<group>"; };
+		FA1200000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LockScreen/LockScreenSceneRecorder.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -248,6 +258,10 @@
 		5E98F6C92A826E5300C12E34 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				FA1200000000000000000004,
+				FA1200000000000000000002 /* LockScreenSyncService.swift */,
+				FA1200000000000000000001 /* LockScreenVideoEncoder.swift */,
+				FA1200000000000000000000 /* LockScreenStore.swift */,
 				DD2000000000000000000002 /* WallpaperPlaybackSession.swift */,
 				AA1B2C3D4E5F600300ABCD01 /* SceneParsers */,
 				5E7665252A2DC30D00E0E4B4 /* WEProject.swift */,
@@ -287,6 +301,7 @@
 		5E98F6CA2A826E8B00C12E34 /* SettingsView */ = {
 			isa = PBXGroup;
 			children = (
+				FA1200000000000000000003 /* LockScreenSettingsSection.swift */,
 				5EDEBA5D2A2E2A7B003470CB /* SettingsView.swift */,
 				5EAF3F6F2A870DEC00F85685 /* PerformancePage.swift */,
 				5EAF3F712A870ED400F85685 /* GeneralPage.swift */,
@@ -499,6 +514,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA1300000000000000000004,
+				FA1300000000000000000003 /* LockScreenSettingsSection.swift in Sources */,
+				FA1300000000000000000002 /* LockScreenSyncService.swift in Sources */,
+				FA1300000000000000000001 /* LockScreenVideoEncoder.swift in Sources */,
+				FA1300000000000000000000 /* LockScreenStore.swift in Sources */,
 				DD2000000000000000000001 /* WallpaperPlaybackSession.swift in Sources */,
 				DD1000000000000000000001 /* WallpaperVolumeControl.swift in Sources */,
 				5E8C82032A9E15D0009E291B /* ExplorerItemMenu.swift in Sources */,
@@ -720,7 +740,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Wallpaper Engine";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_LSUIElement = NO;
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -758,7 +778,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Wallpaper Engine";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_LSUIElement = NO;
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
