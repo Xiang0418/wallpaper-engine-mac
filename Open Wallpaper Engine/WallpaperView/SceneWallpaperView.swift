@@ -39,6 +39,7 @@ struct SceneWallpaperView: NSViewRepresentable {
         skView.preferredFramesPerSecond = Int(AppDelegate.shared.globalSettingsViewModel.settings.fps)
 
         if let scene = viewModel.skScene {
+            scene.scaleMode = .fill
             skView.presentScene(scene)
         }
 
@@ -57,6 +58,7 @@ struct SceneWallpaperView: NSViewRepresentable {
 
         // Present scene if available and not already presented
         if let scene = viewModel.skScene, skView.scene !== scene {
+            scene.scaleMode = .fill
             skView.presentScene(scene)
         }
 
